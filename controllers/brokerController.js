@@ -1,75 +1,127 @@
-const Broker = require('../models/Broker');
-const User = require('../models/User');
+const prisma = require("../prismaClient");
 
-// @desc    Get all brokers
-// @route   GET /api/brokers
-// @access  Public
+/**
+ * GET /api/brokers
+ * Public – with filters
+ */
 exports.getBrokers = async (req, res) => {
   try {
     const { city, specialization, minRating } = req.query;
 
-    let filter = { verified: true };
+    const where = {
+      verified: true,
+      rating: minRating ? { gte: Number(minRating) } : undefined,
+      specialization: specialization
+        ? { has: specialization.toUpperCase() }
+        : undefined,
+      servingAreas: city
+        ? { hasSome: [city] }
+        : undefined,
+    };
 
-    if (specialization) filter.specialization = specialization;
-    if (city) filter.servingAreas = new RegExp(city, 'i');
-    if (minRating) filter.rating = { $gte: parseFloat(minRating) };
-
-    const brokers = await Broker.find(filter)
-      .populate('userId', 'name email phone')
-      .sort({ rating: -1 });
+    const brokers = await prisma.broker.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: {
+        rating: "desc",
+      },
+    });
 
     res.json(brokers);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("getBrokers error:", error);
+    res.status(500).json({ message: "Failed to fetch brokers" });
   }
 };
 
-// @desc    Get single broker
-// @route   GET /api/brokers/:id
-// @access  Public
+/**
+ * GET /api/brokers/:id
+ * Public
+ */
 exports.getBrokerById = async (req, res) => {
   try {
-    const broker = await Broker.findById(req.params.id)
-      .populate('userId', 'name email phone')
-      .populate('properties');
+    const id = Number(req.params.id);
+
+    const broker = await prisma.broker.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        properties: true,
+      },
+    });
 
     if (!broker) {
-      return res.status(404).json({ message: 'Broker not found' });
+      return res.status(404).json({ message: "Broker not found" });
     }
 
     res.json(broker);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("getBrokerById error:", error);
+    res.status(500).json({ message: "Failed to fetch broker" });
   }
 };
 
-// @desc    Create broker profile
-// @route   POST /api/brokers
-// @access  Private
+/**
+ * POST /api/brokers
+ * Private (JWT required)
+ */
 exports.createBroker = async (req, res) => {
   try {
-    const { company, licenseNumber, experience, specialization, servingAreas } = req.body;
-
-    // Check if broker profile already exists
-    const existingBroker = await Broker.findOne({ userId: req.user._id });
-    if (existingBroker) {
-      return res.status(400).json({ message: 'Broker profile already exists' });
-    }
-
-    const broker = await Broker.create({
-      userId: req.user._id,
+    const {
       company,
       licenseNumber,
       experience,
       specialization,
-      servingAreas
+      servingAreas,
+    } = req.body;
+
+    const userId = req.user.id;
+
+    const existingBroker = await prisma.broker.findUnique({
+      where: { userId },
     });
 
-    // Update user role to broker
-    await User.findByIdAndUpdate(req.user._id, { role: 'broker' });
+    if (existingBroker) {
+      return res
+        .status(400)
+        .json({ message: "Broker profile already exists" });
+    }
+
+    const broker = await prisma.broker.create({
+      data: {
+        userId,
+        company,
+        licenseNumber,
+        experience,
+        specialization: Array.isArray(specialization)
+          ? specialization.map((s) => s.toUpperCase())
+          : [specialization.toUpperCase()],
+        servingAreas: servingAreas || [],
+      },
+    });
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: "BROKER" },
+    });
 
     res.status(201).json(broker);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("createBroker error:", error);
+    res.status(500).json({ message: "Failed to create broker" });
   }
 };

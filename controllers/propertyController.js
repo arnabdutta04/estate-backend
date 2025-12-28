@@ -1,9 +1,9 @@
-const Property = require('../models/Property');
-const Broker = require('../models/Broker');
+const prisma = require("../prismaClient");
 
-// @desc    Get all properties with filters
-// @route   GET /api/properties
-// @access  Public
+// ===============================
+// GET PROPERTIES WITH FILTERS
+// GET /api/properties
+// ===============================
 exports.getProperties = async (req, res) => {
   try {
     const {
@@ -18,165 +18,141 @@ exports.getProperties = async (req, res) => {
       maxArea,
       condition,
       page = 1,
-      limit = 12
+      limit = 12,
     } = req.query;
 
-    // Build filter object
-    let filter = { status: 'available' };
+    const where = {
+      status: "AVAILABLE",
+      propertyType: propertyType || undefined,
+      listingType: listingType || undefined,
+      city: city ? { contains: city, mode: "insensitive" } : undefined,
+      condition: condition || undefined,
+      bedrooms: bedrooms ? { gte: Number(bedrooms) } : undefined,
+      bathrooms: bathrooms ? { gte: Number(bathrooms) } : undefined,
+      price: {
+        gte: minPrice ? Number(minPrice) : undefined,
+        lte: maxPrice ? Number(maxPrice) : undefined,
+      },
+      area: {
+        gte: minArea ? Number(minArea) : undefined,
+        lte: maxArea ? Number(maxArea) : undefined,
+      },
+    };
 
-    if (propertyType) filter.propertyType = propertyType;
-    if (listingType) filter.listingType = listingType;
-    if (city) filter['location.city'] = new RegExp(city, 'i');
-    if (condition) filter.condition = condition;
-    if (bedrooms) filter['specifications.bedrooms'] = { $gte: parseInt(bedrooms) };
-    if (bathrooms) filter['specifications.bathrooms'] = { $gte: parseInt(bathrooms) };
+    const properties = await prisma.property.findMany({
+      where,
+      skip: (page - 1) * Number(limit),
+      take: Number(limit),
+      orderBy: { createdAt: "desc" },
+    });
 
-    // Price range
-    if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = parseInt(minPrice);
-      if (maxPrice) filter.price.$lte = parseInt(maxPrice);
-    }
-
-    // Area range
-    if (minArea || maxArea) {
-      filter['specifications.area'] = {};
-      if (minArea) filter['specifications.area'].$gte = parseInt(minArea);
-      if (maxArea) filter['specifications.area'].$lte = parseInt(maxArea);
-    }
-
-    const properties = await Property.find(filter)
-      .populate('broker', 'company licenseNumber rating')
-      .populate('owner', 'name email phone')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const count = await Property.countDocuments(filter);
+    const total = await prisma.property.count({ where });
 
     res.json({
       properties,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page,
-      total: count
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("getProperties error:", error);
+    res.status(500).json({ message: "Failed to fetch properties" });
   }
 };
 
-// @desc    Get single property
-// @route   GET /api/properties/:id
-// @access  Public
+// ===============================
+// GET SINGLE PROPERTY
+// GET /api/properties/:id
+// ===============================
 exports.getPropertyById = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id)
-      .populate('broker')
-      .populate('owner', 'name email phone');
+    const id = Number(req.params.id);
 
-    if (!property) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
-
-    // Increment views
-    property.views += 1;
-    await property.save();
+    const property = await prisma.property.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+    });
 
     res.json(property);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(404).json({ message: "Property not found" });
   }
 };
 
-// @desc    Create new property
-// @route   POST /api/properties
-// @access  Private (Broker only)
+// ===============================
+// CREATE PROPERTY
+// POST /api/properties
+// ===============================
 exports.createProperty = async (req, res) => {
   try {
-    const broker = await Broker.findOne({ userId: req.user._id });
+    const data = req.body;
 
-    if (!broker) {
-      return res.status(403).json({ message: 'Only brokers can create properties' });
-    }
-
-    const property = await Property.create({
-      ...req.body,
-      broker: broker._id,
-      owner: req.user._id
+    const property = await prisma.property.create({
+      data: {
+        ...data,
+        status: "AVAILABLE",
+      },
     });
-
-    // Add property to broker's properties list
-    broker.properties.push(property._id);
-    await broker.save();
 
     res.status(201).json(property);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("createProperty error:", error);
+    res.status(500).json({ message: "Failed to create property" });
   }
 };
 
-// @desc    Update property
-// @route   PUT /api/properties/:id
-// @access  Private (Broker/Owner only)
+// ===============================
+// UPDATE PROPERTY
+// PUT /api/properties/:id
+// ===============================
 exports.updateProperty = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const id = Number(req.params.id);
 
-    if (!property) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
+    const property = await prisma.property.update({
+      where: { id },
+      data: req.body,
+    });
 
-    // Check if user is owner or broker
-    if (property.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to update this property' });
-    }
-
-    const updatedProperty = await Property.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    res.json(updatedProperty);
+    res.json(property);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(404).json({ message: "Property not found" });
   }
 };
 
-// @desc    Delete property
-// @route   DELETE /api/properties/:id
-// @access  Private (Broker/Owner only)
+// ===============================
+// DELETE PROPERTY
+// DELETE /api/properties/:id
+// ===============================
 exports.deleteProperty = async (req, res) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const id = Number(req.params.id);
 
-    if (!property) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
+    await prisma.property.delete({ where: { id } });
 
-    if (property.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this property' });
-    }
-
-    await property.deleteOne();
-
-    res.json({ message: 'Property removed' });
+    res.json({ message: "Property removed" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(404).json({ message: "Property not found" });
   }
 };
 
-// @desc    Get featured properties
-// @route   GET /api/properties/featured
-// @access  Public
+// ===============================
+// FEATURED PROPERTIES
+// GET /api/properties/featured
+// ===============================
 exports.getFeaturedProperties = async (req, res) => {
   try {
-    const properties = await Property.find({ featured: true, status: 'available' })
-      .populate('broker', 'company rating')
-      .limit(6);
+    const properties = await prisma.property.findMany({
+      where: {
+        featured: true,
+        status: "AVAILABLE",
+      },
+      take: 6,
+      orderBy: { createdAt: "desc" },
+    });
 
     res.json(properties);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to fetch featured properties" });
   }
 };
