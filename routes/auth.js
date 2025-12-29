@@ -6,16 +6,32 @@ const { protect } = require("../middleware/auth");
 
 const router = express.Router();
 
-const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+/**
+ * Generate JWT with role
+ */
+const generateToken = (user) =>
+  jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 
-// ===================== REGISTER =====================
+/**
+ * ===================== REGISTER =====================
+ * role can be: customer | broker
+ */
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     if (!name || !email || !password || !phone) {
       return res.status(400).json({ message: "All fields required" });
+    }
+
+    // 🔒 Normalize & secure role
+    let finalRole = "CUSTOMER";
+    if (role === "broker") {
+      finalRole = "PENDING_BROKER"; // broker needs profile verification
     }
 
     // Check existing user
@@ -31,17 +47,17 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (name, email, phone, password)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, phone, password, role)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, name, email, phone, role`,
-      [name, email, phone, hashedPassword]
+      [name, email, phone, hashedPassword, finalRole]
     );
 
     const user = result.rows[0];
 
     res.status(201).json({
       user,
-      token: generateToken(user.id),
+      token: generateToken(user),
     });
   } catch (err) {
     console.error("REGISTER ERROR:", err);
@@ -49,7 +65,9 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// ===================== LOGIN =====================
+/**
+ * ===================== LOGIN =====================
+ */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -66,20 +84,15 @@ router.post("/login", async (req, res) => {
     }
 
     const match = await bcrypt.compare(password, user.password);
-
     if (!match) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    delete user.password;
+
     res.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-      },
-      token: generateToken(user.id),
+      user,
+      token: generateToken(user),
     });
   } catch (err) {
     console.error("LOGIN ERROR:", err);
@@ -87,7 +100,9 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// ===================== ME =====================
+/**
+ * ===================== ME =====================
+ */
 router.get("/me", protect, async (req, res) => {
   const result = await pool.query(
     "SELECT id, name, email, phone, role FROM users WHERE id = $1",
@@ -98,4 +113,3 @@ router.get("/me", protect, async (req, res) => {
 });
 
 module.exports = router;
-
