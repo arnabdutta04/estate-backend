@@ -14,14 +14,24 @@ const protect = (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // decoded should contain: { id, role }
+    // decoded contains: { id, role }
     req.user = decoded;
-
     next();
   } catch (error) {
     console.error("AUTH ERROR:", error.message);
     return res.status(401).json({ message: "Not authorized, token invalid" });
   }
+};
+
+/**
+ * Generate JWT token
+ */
+const generateToken = (user) => {
+  return jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 };
 
 /**
@@ -36,4 +46,8 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { protect, authorize };
+module.exports = {
+  protect,
+  authorize,
+  generateToken, // ✅ IMPORTANT
+};
