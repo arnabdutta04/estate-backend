@@ -1,43 +1,53 @@
-const prisma = require("../prismaClient");
+const { pool } = require("../config/db");
 
 /**
  * GET /api/brokers
- * Public – with filters
+ * Public
  */
 exports.getBrokers = async (req, res) => {
   try {
     const { city, specialization, minRating } = req.query;
 
-    const where = {
-      verified: true,
-      rating: minRating ? { gte: Number(minRating) } : undefined,
-      specialization: specialization
-        ? { has: specialization.toUpperCase() }
-        : undefined,
-      servingAreas: city
-        ? { hasSome: [city] }
-        : undefined,
-    };
+    const conditions = [];
+    const values = [];
 
-    const brokers = await prisma.broker.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-      },
-      orderBy: {
-        rating: "desc",
-      },
-    });
+    // Only verified brokers
+    conditions.push("b.verified = true");
 
-    res.json(brokers);
+    if (minRating) {
+      values.push(Number(minRating));
+      conditions.push(`b.rating >= $${values.length}`);
+    }
+
+    if (specialization) {
+      values.push(specialization.toUpperCase());
+      conditions.push(`$${values.length} = ANY(b.specialization)`);
+    }
+
+    if (city) {
+      values.push(city);
+      conditions.push(`$${values.length} = ANY(b.serving_areas)`);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const query = `
+      SELECT 
+        b.*,
+        u.name,
+        u.email,
+        u.phone
+      FROM brokers b
+      JOIN users u ON u.id = b.user_id
+      ${whereClause}
+      ORDER BY b.rating DESC
+    `;
+
+    const result = await pool.query(query, values);
+    res.json(result.rows);
   } catch (error) {
-    console.error("getBrokers error:", error);
+    console.error("getBrokers error:", error.message);
     res.status(500).json({ message: "Failed to fetch brokers" });
   }
 };
@@ -48,29 +58,37 @@ exports.getBrokers = async (req, res) => {
  */
 exports.getBrokerById = async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const brokerId = Number(req.params.id);
 
-    const broker = await prisma.broker.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        properties: true,
-      },
-    });
+    const brokerResult = await pool.query(
+      `
+      SELECT 
+        b.*,
+        u.name,
+        u.email,
+        u.phone
+      FROM brokers b
+      JOIN users u ON u.id = b.user_id
+      WHERE b.id = $1
+      `,
+      [brokerId]
+    );
 
-    if (!broker) {
+    if (brokerResult.rows.length === 0) {
       return res.status(404).json({ message: "Broker not found" });
     }
 
-    res.json(broker);
+    const propertiesResult = await pool.query(
+      "SELECT * FROM properties WHERE broker_id = $1",
+      [brokerId]
+    );
+
+    res.json({
+      ...brokerResult.rows[0],
+      properties: propertiesResult.rows,
+    });
   } catch (error) {
-    console.error("getBrokerById error:", error);
+    console.error("getBrokerById error:", error.message);
     res.status(500).json({ message: "Failed to fetch broker" });
   }
 };
@@ -91,37 +109,43 @@ exports.createBroker = async (req, res) => {
 
     const userId = req.user.id;
 
-    const existingBroker = await prisma.broker.findUnique({
-      where: { userId },
-    });
+    const existing = await pool.query(
+      "SELECT id FROM brokers WHERE user_id = $1",
+      [userId]
+    );
 
-    if (existingBroker) {
+    if (existing.rows.length > 0) {
       return res
         .status(400)
         .json({ message: "Broker profile already exists" });
     }
 
-    const broker = await prisma.broker.create({
-      data: {
-        userId,
-        company,
-        licenseNumber,
-        experience,
-        specialization: Array.isArray(specialization)
-          ? specialization.map((s) => s.toUpperCase())
-          : [specialization.toUpperCase()],
-        servingAreas: servingAreas || [],
-      },
-    });
+    const specArray = Array.isArray(specialization)
+      ? specialization.map((s) => s.toUpperCase())
+      : [specialization.toUpperCase()];
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: { role: "BROKER" },
-    });
+    const areasArray = servingAreas || [];
 
-    res.status(201).json(broker);
+    const result = await pool.query(
+      `
+      INSERT INTO brokers
+        (user_id, company, license_number, experience, specialization, serving_areas)
+      VALUES
+        ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+      `,
+      [userId, company, licenseNumber, experience, specArray, areasArray]
+    );
+
+    // Update user role
+    await pool.query(
+      "UPDATE users SET role = 'BROKER' WHERE id = $1",
+      [userId]
+    );
+
+    res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error("createBroker error:", error);
+    console.error("createBroker error:", error.message);
     res.status(500).json({ message: "Failed to create broker" });
   }
 };
