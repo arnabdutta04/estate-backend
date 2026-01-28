@@ -9,14 +9,21 @@ const config = require('./config/config');
 
 // Import error handler middleware
 const errorHandler = require('./middleware/errorHandler');
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(logger.middleware);
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const propertyRoutes = require('./routes/propertyRoutes');
 const brokerRoutes = require('./routes/brokerRoutes');
-const userRoutes = require('./routes/userRoutes');
-const adminRoutes = require('./routes/adminRoutes');
 const contactRoutes = require('./routes/contactRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const scheduleRoutes = require('./routes/scheduleRoutes'); // NEW
+const messageRoutes = require('./routes/messageRoutes');
 
 // Initialize Express app
 const app = express();
@@ -100,11 +107,14 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/brokers', brokerRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/schedules', scheduleRoutes);  // NEW
+app.use('/api/messages', messageRoutes);
 
 // 404 Error Handler
 app.use((req, res, next) => {
