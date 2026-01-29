@@ -3,28 +3,44 @@ const User = require('../models/User');
 const Property = require('../models/Property');
 const { Op } = require('sequelize');
 
-// Send a message
+// FIXED: Send a message - support both frontend formats
 exports.sendMessage = async (req, res, next) => {
   try {
-    const { receiverId, propertyId, message } = req.body;
+    const { 
+      receiverId, 
+      recipientId,  // ADDED: Frontend compatibility
+      propertyId, 
+      message,
+      subject        // ADDED: Frontend sends subject
+    } = req.body;
     const senderId = req.user.id;
 
+    // FIXED: Accept both receiverId and recipientId
+    const actualReceiverId = receiverId || recipientId;
+
     // Validation
-    if (!receiverId || !message) {
-      return res.status(400).json({ message: 'Receiver and message are required' });
+    if (!actualReceiverId || !message) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Recipient and message are required' 
+      });
     }
 
     // Check if receiver exists
-    const receiver = await User.findByPk(receiverId);
+    const receiver = await User.findByPk(actualReceiverId);
     if (!receiver) {
-      return res.status(404).json({ message: 'Receiver not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Recipient not found' 
+      });
     }
 
-    // Create message
+    // FIXED: Create message with subject support
     const newMessage = await Message.create({
       senderId,
-      receiverId,
+      receiverId: actualReceiverId,
       propertyId: propertyId || null,
+      subject: subject || 'Property Inquiry',  // ADDED
       message,
       isRead: false
     });
@@ -45,17 +61,22 @@ exports.sendMessage = async (req, res, next) => {
         {
           model: Property,
           as: 'property',
-          attributes: ['id', 'title', 'address', 'city', 'price', 'images']
+          attributes: ['id', 'title', 'location', 'price', 'images']
         }
       ]
     });
 
     res.status(201).json({
+      success: true,
       message: 'Message sent successfully',
       data: messageWithDetails
     });
   } catch (error) {
-    next(error);
+    console.error('Error sending message:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send message'
+    });
   }
 };
 
@@ -114,9 +135,16 @@ exports.getConversations = async (req, res, next) => {
 
     const conversations = Array.from(conversationsMap.values());
 
-    res.status(200).json({ conversations });
+    res.status(200).json({ 
+      success: true,
+      conversations 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch conversations'
+    });
   }
 };
 
@@ -147,7 +175,7 @@ exports.getMessagesBetweenUsers = async (req, res, next) => {
         {
           model: Property,
           as: 'property',
-          attributes: ['id', 'title', 'address', 'city', 'price', 'images']
+          attributes: ['id', 'title', 'location', 'price', 'images']
         }
       ],
       order: [['createdAt', 'ASC']]
@@ -165,9 +193,16 @@ exports.getMessagesBetweenUsers = async (req, res, next) => {
       }
     );
 
-    res.status(200).json({ messages });
+    res.status(200).json({ 
+      success: true,
+      messages 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error fetching messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch messages'
+    });
   }
 };
 
@@ -180,7 +215,10 @@ exports.getPropertyMessages = async (req, res, next) => {
     // Check if property exists
     const property = await Property.findByPk(propertyId);
     if (!property) {
-      return res.status(404).json({ message: 'Property not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Property not found' 
+      });
     }
 
     const messages = await Message.findAll({
@@ -206,9 +244,16 @@ exports.getPropertyMessages = async (req, res, next) => {
       order: [['createdAt', 'ASC']]
     });
 
-    res.status(200).json({ messages });
+    res.status(200).json({ 
+      success: true,
+      messages 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error fetching property messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch property messages'
+    });
   }
 };
 
@@ -223,18 +268,26 @@ exports.markAsRead = async (req, res, next) => {
     });
 
     if (!message) {
-      return res.status(404).json({ message: 'Message not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Message not found' 
+      });
     }
 
     message.isRead = true;
     await message.save();
 
     res.status(200).json({
+      success: true,
       message: 'Message marked as read',
       data: message
     });
   } catch (error) {
-    next(error);
+    console.error('Error marking message as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark message as read'
+    });
   }
 };
 
@@ -255,9 +308,16 @@ exports.markAllAsRead = async (req, res, next) => {
       }
     );
 
-    res.status(200).json({ message: 'All messages marked as read' });
+    res.status(200).json({ 
+      success: true,
+      message: 'All messages marked as read' 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error marking all messages as read:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mark messages as read'
+    });
   }
 };
 
@@ -273,13 +333,20 @@ exports.getUnreadCount = async (req, res, next) => {
       }
     });
 
-    res.status(200).json({ unreadCount: count });
+    res.status(200).json({ 
+      success: true,
+      unreadCount: count 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error fetching unread count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch unread count'
+    });
   }
 };
 
-// Delete a message (soft delete by marking as deleted)
+// Delete a message
 exports.deleteMessage = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -296,14 +363,35 @@ exports.deleteMessage = async (req, res, next) => {
     });
 
     if (!message) {
-      return res.status(404).json({ message: 'Message not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Message not found' 
+      });
     }
 
     // Actually delete the message
     await message.destroy();
 
-    res.status(200).json({ message: 'Message deleted successfully' });
+    res.status(200).json({ 
+      success: true,
+      message: 'Message deleted successfully' 
+    });
   } catch (error) {
-    next(error);
+    console.error('Error deleting message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete message'
+    });
   }
+};
+
+module.exports = {
+  sendMessage: exports.sendMessage,
+  getConversations: exports.getConversations,
+  getMessagesBetweenUsers: exports.getMessagesBetweenUsers,
+  getPropertyMessages: exports.getPropertyMessages,
+  markAsRead: exports.markAsRead,
+  markAllAsRead: exports.markAllAsRead,
+  getUnreadCount: exports.getUnreadCount,
+  deleteMessage: exports.deleteMessage
 };

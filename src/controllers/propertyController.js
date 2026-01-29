@@ -9,13 +9,15 @@ exports.getAllProperties = async (req, res) => {
     const {
       propertyType,
       listingType,
+      propertyFor, // ADDED: Frontend compatibility
       city,
       minPrice,
       maxPrice,
       bedrooms,
       bathrooms,
       keyword,
-      facilities,
+      facilities, // ADDED: Handle facilities filtering
+      style, // ADDED: Handle style filtering
       status = 'active',
       page = 1,
       limit = 12
@@ -30,8 +32,14 @@ exports.getAllProperties = async (req, res) => {
       whereConditions.propertyType = propertyType;
     }
 
-    if (listingType) {
-      whereConditions.listingType = listingType;
+    // FIXED: Support both listingType and propertyFor
+    if (listingType || propertyFor) {
+      whereConditions.listingType = listingType || propertyFor;
+    }
+
+    // FIXED: Handle style filtering
+    if (style) {
+      whereConditions.style = style;
     }
 
     if (minPrice || maxPrice) {
@@ -47,18 +55,33 @@ exports.getAllProperties = async (req, res) => {
       ];
     }
 
+    // FIXED: Correct JSONB city filtering
     if (city) {
-      whereConditions.location = {
-        city: { [Op.iLike]: `%${city}%` }
+      whereConditions['location.city'] = {
+        [Op.iLike]: `%${city}%`
       };
     }
 
+    // FIXED: Correct JSONB bedrooms filtering
     if (bedrooms) {
-      whereConditions['specifications.bedrooms'] = parseInt(bedrooms);
+      whereConditions['specifications.bedrooms'] = {
+        [Op.gte]: parseInt(bedrooms)
+      };
     }
 
+    // FIXED: Correct JSONB bathrooms filtering
     if (bathrooms) {
-      whereConditions['specifications.bathrooms'] = parseInt(bathrooms);
+      whereConditions['specifications.bathrooms'] = {
+        [Op.gte]: parseInt(bathrooms)
+      };
+    }
+
+    // ADDED: Facilities filtering
+    if (facilities) {
+      const facilityArray = Array.isArray(facilities) ? facilities : [facilities];
+      facilityArray.forEach(facility => {
+        whereConditions[`facilities.${facility}`] = true;
+      });
     }
 
     // Pagination
@@ -85,18 +108,25 @@ exports.getAllProperties = async (req, res) => {
       ]
     });
 
-    // Transform response
+    // FIXED: Transform response to match frontend expectations
     const transformedProperties = properties.map(property => ({
       _id: property.id,
       title: property.title,
       description: property.description,
       propertyType: property.propertyType,
+      type: property.propertyType, // ADDED: Frontend compatibility
       listingType: property.listingType,
+      propertyFor: property.listingType, // ADDED: Frontend compatibility
       price: property.price,
       location: property.location,
+      city: property.location?.city, // ADDED: Direct city access
       specifications: property.specifications,
+      bedrooms: property.specifications?.bedrooms, // ADDED: Direct access
+      bathrooms: property.specifications?.bathrooms, // ADDED: Direct access
+      area: property.specifications?.area, // ADDED: Direct access
       facilities: property.facilities,
       images: property.images,
+      image: property.images && property.images.length > 0 ? property.images[0] : null, // ADDED: Single image for frontend
       yearBuilt: property.yearBuilt,
       age: property.age,
       condition: property.condition,
@@ -105,29 +135,39 @@ exports.getAllProperties = async (req, res) => {
       views: property.views,
       inquiries: property.inquiries,
       isFeatured: property.isFeatured,
+      parking: property.facilities?.parkingSlot || false, // ADDED: Frontend compatibility
+      lat: property.location?.coordinates?.lat || 0, // ADDED: Map compatibility
+      lng: property.location?.coordinates?.lng || 0, // ADDED: Map compatibility
       broker: property.broker ? {
-        userId: property.broker.user,
+        userId: property.broker.user?.id,
         company: property.broker.companyName,
         licenseNumber: property.broker.licenseNumber,
-        experience: property.broker.yearsOfExperience
+        experience: property.broker.yearsOfExperience,
+        name: property.broker.user?.name,
+        email: property.broker.user?.email,
+        phone: property.broker.user?.phone
       } : null,
       createdAt: property.createdAt
     }));
 
+    // FIXED: Response structure to match frontend expectations
     res.status(200).json({
-      success: true,
+      properties: transformedProperties, // Direct access
       count: transformedProperties.length,
       totalCount: count,
       currentPage: parseInt(page),
       totalPages: Math.ceil(count / parseInt(limit)),
-      properties: transformedProperties
+      success: true // Optional for error handling
     });
 
   } catch (error) {
     console.error('Error fetching properties:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching properties'
+      message: 'Error fetching properties',
+      properties: [], // ADDED: Empty array for frontend
+      currentPage: 1,
+      totalPages: 1
     });
   }
 };
@@ -141,7 +181,7 @@ exports.getPropertyById = async (req, res) => {
       include: [{
         model: Broker,
         as: 'broker',
-        attributes: ['id', 'companyName', 'licenseNumber', 'yearsOfExperience', 'profileImage'],
+        attributes: ['id', 'companyName', 'licenseNumber', 'yearsOfExperience', 'profileImage', 'rating', 'totalReviews'],
         include: [{
           model: User,
           as: 'user',
@@ -160,18 +200,25 @@ exports.getPropertyById = async (req, res) => {
     // Increment view count
     await property.increment('views');
 
-    // Transform response
+    // FIXED: Transform response with proper user object structure
     const transformedProperty = {
       _id: property.id,
       title: property.title,
       description: property.description,
       propertyType: property.propertyType,
+      type: property.propertyType,
       listingType: property.listingType,
+      propertyFor: property.listingType,
       price: property.price,
       location: property.location,
+      city: property.location?.city,
       specifications: property.specifications,
+      bedrooms: property.specifications?.bedrooms,
+      bathrooms: property.specifications?.bathrooms,
+      area: property.specifications?.area,
       facilities: property.facilities,
       images: property.images,
+      image: property.images && property.images.length > 0 ? property.images[0] : null,
       yearBuilt: property.yearBuilt,
       age: property.age,
       condition: property.condition,
@@ -179,9 +226,21 @@ exports.getPropertyById = async (req, res) => {
       status: property.status,
       views: property.views + 1,
       inquiries: property.inquiries,
+      isFeatured: property.isFeatured,
+      parking: property.facilities?.parkingSlot || false,
+      lat: property.location?.coordinates?.lat || 0,
+      lng: property.location?.coordinates?.lng || 0,
       ownerType: property.ownerType,
+      // FIXED: Broker object with proper userId structure for frontend
       broker: property.broker ? {
-        userId: property.broker.user,
+        // Frontend expects: property.broker.userId.name
+        userId: property.broker.user ? {
+          _id: property.broker.user.id,
+          id: property.broker.user.id,
+          name: property.broker.user.name,
+          email: property.broker.user.email,
+          phone: property.broker.user.phone
+        } : null,
         company: property.broker.companyName,
         licenseNumber: property.broker.licenseNumber,
         experience: property.broker.yearsOfExperience,
@@ -217,6 +276,7 @@ exports.createProperty = async (req, res) => {
       description,
       propertyType,
       listingType,
+      propertyFor, // ADDED: Support frontend parameter
       price,
       location,
       specifications,
@@ -256,11 +316,11 @@ exports.createProperty = async (req, res) => {
       title,
       description,
       propertyType,
-      listingType,
+      listingType: listingType || propertyFor || 'sale', // FIXED: Support both parameters
       price,
       location,
       specifications,
-      facilities,
+      facilities: facilities || {},
       images: images || [],
       yearBuilt,
       age,
@@ -313,8 +373,14 @@ exports.updateProperty = async (req, res) => {
       });
     }
 
+    // FIXED: Support both listingType and propertyFor
+    const updateData = { ...req.body };
+    if (req.body.propertyFor && !req.body.listingType) {
+      updateData.listingType = req.body.propertyFor;
+    }
+
     // Update property
-    await property.update(req.body);
+    await property.update(updateData);
 
     res.status(200).json({
       success: true,
@@ -395,15 +461,23 @@ exports.getMyProperties = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Transform response
+    // FIXED: Transform response to match frontend expectations
     const transformedProperties = properties.map(property => ({
       _id: property.id,
       title: property.title,
       propertyType: property.propertyType,
+      type: property.propertyType, // ADDED
       listingType: property.listingType,
+      propertyFor: property.listingType, // ADDED
       price: property.price,
       location: property.location,
+      city: property.location?.city, // ADDED
+      specifications: property.specifications,
+      bedrooms: property.specifications?.bedrooms, // ADDED
+      bathrooms: property.specifications?.bathrooms, // ADDED
+      area: property.specifications?.area, // ADDED
       images: property.images,
+      image: property.images && property.images.length > 0 ? property.images[0] : null, // ADDED
       status: property.status,
       views: property.views,
       inquiries: property.inquiries,

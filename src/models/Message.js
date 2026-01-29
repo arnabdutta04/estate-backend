@@ -40,6 +40,12 @@ const Message = sequelize.define('Message', {
     onDelete: 'SET NULL',
     comment: 'Optional - related property'
   },
+  subject: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    defaultValue: 'Property Inquiry',
+    comment: 'Message subject line'
+  },
   message: {
     type: DataTypes.TEXT,
     allowNull: false,

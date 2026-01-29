@@ -1,5 +1,6 @@
 const { User, Broker } = require('../models');
 const { validationResult } = require('express-validator');
+const { Op } = require('sequelize');
 
 // @desc    Get all verified brokers (public)
 // @route   GET /api/brokers
@@ -19,13 +20,13 @@ exports.getAllBrokers = async (req, res) => {
 
     if (specialization) {
       whereConditions.specialization = {
-        [require('sequelize').Op.contains]: [specialization]
+        [Op.contains]: [specialization]
       };
     }
 
     if (language) {
       whereConditions.languages = {
-        [require('sequelize').Op.contains]: [language]
+        [Op.contains]: [language]
       };
     }
 
@@ -38,11 +39,11 @@ exports.getAllBrokers = async (req, res) => {
         attributes: ['id', 'name', 'email', 'phone'],
         where: search ? {
           name: {
-            [require('sequelize').Op.iLike]: `%${search}%`
+            [Op.iLike]: `%${search}%`
           }
         } : undefined
       }],
-      attributes: { exclude: ['documentUrl'] },
+      attributes: { exclude: ['documentUrl', 'licenseDocument', 'idProof'] },
       order: [
         ['isFeatured', 'DESC'],
         ['isBestAgent', 'DESC'],
@@ -50,10 +51,13 @@ exports.getAllBrokers = async (req, res) => {
       ]
     });
 
-    // Transform response to match frontend expectations
+    // FIXED: Transform response to match frontend expectations
     const transformedBrokers = brokers.map(broker => ({
       _id: broker.id,
+      // FIXED: Frontend expects broker.userId.name structure
       userId: {
+        _id: broker.user.id,
+        id: broker.user.id,
         name: broker.user.name,
         email: broker.user.email,
         phone: broker.user.phone
@@ -61,11 +65,11 @@ exports.getAllBrokers = async (req, res) => {
       company: broker.companyName,
       licenseNumber: broker.licenseNumber,
       yearsOfExperience: broker.yearsOfExperience,
-      specialization: broker.specialization,
-      servingCities: broker.city || broker.servingCities,
-      propertyTypes: broker.propertyTypes,
-      listingType: broker.listingTypes,
-      languages: broker.languages,
+      specialization: broker.specialization || [],
+      servingCities: broker.servingCities || broker.city, // FIXED: Consistent field
+      propertyTypes: broker.propertyTypes || [],
+      listingType: broker.listingTypes || [],
+      languages: broker.languages || [],
       photo: broker.profileImage,
       verificationStatus: broker.verificationStatus,
       isFeatured: broker.isFeatured || false,
@@ -73,17 +77,15 @@ exports.getAllBrokers = async (req, res) => {
       createdAt: broker.createdAt
     }));
 
-    res.status(200).json({
-      success: true,
-      count: transformedBrokers.length,
-      data: transformedBrokers
-    });
+    // FIXED: Return array directly for frontend compatibility
+    res.status(200).json(transformedBrokers);
 
   } catch (error) {
     console.error('Error fetching brokers:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching brokers'
+      message: 'Error fetching brokers',
+      data: [] // Return empty array on error
     });
   }
 };
@@ -99,7 +101,7 @@ exports.getBrokerById = async (req, res) => {
         as: 'user',
         attributes: ['id', 'name', 'email', 'phone']
       }],
-      attributes: { exclude: ['documentUrl'] }
+      attributes: { exclude: ['documentUrl', 'licenseDocument', 'idProof'] }
     });
 
     if (!broker) {
@@ -109,19 +111,29 @@ exports.getBrokerById = async (req, res) => {
       });
     }
 
-    // Transform response
+    // FIXED: Transform response to match frontend expectations
     const transformedBroker = {
       _id: broker.id,
-      userId: broker.user,
+      userId: {
+        _id: broker.user.id,
+        id: broker.user.id,
+        name: broker.user.name,
+        email: broker.user.email,
+        phone: broker.user.phone
+      },
       company: broker.companyName,
       licenseNumber: broker.licenseNumber,
       yearsOfExperience: broker.yearsOfExperience,
-      specialization: broker.specialization,
-      servingCities: broker.city,
-      propertyTypes: broker.propertyTypes,
+      specialization: broker.specialization || [],
+      servingCities: broker.servingCities || broker.city,
+      propertyTypes: broker.propertyTypes || [],
+      listingType: broker.listingTypes || [],
+      languages: broker.languages || [],
       about: broker.about,
       photo: broker.profileImage,
       verificationStatus: broker.verificationStatus,
+      isFeatured: broker.isFeatured || false,
+      isBestAgent: broker.isBestAgent || false,
       createdAt: broker.createdAt
     };
 
@@ -160,23 +172,32 @@ exports.getMyBrokerProfile = async (req, res) => {
       });
     }
 
-    // Transform response
+    // Transform response with all fields including documents
     const transformedBroker = {
       _id: broker.id,
-      userId: broker.user,
+      userId: {
+        _id: broker.user.id,
+        id: broker.user.id,
+        name: broker.user.name,
+        email: broker.user.email,
+        phone: broker.user.phone
+      },
       company: broker.companyName,
       licenseNumber: broker.licenseNumber,
       yearsOfExperience: broker.yearsOfExperience,
-      specialization: broker.specialization,
-      servingCities: broker.city,
-      propertyTypes: broker.propertyTypes,
-      listingType: broker.listingTypes,
+      specialization: broker.specialization || [],
+      servingCities: broker.servingCities || broker.city,
+      propertyTypes: broker.propertyTypes || [],
+      listingType: broker.listingTypes || [],
+      languages: broker.languages || [],
       about: broker.about,
       photo: broker.profileImage,
       licenseDocument: broker.licenseDocument,
       idProof: broker.idProof,
       verificationStatus: broker.verificationStatus,
       rejectionReason: broker.rejectionReason,
+      isFeatured: broker.isFeatured || false,
+      isBestAgent: broker.isBestAgent || false,
       createdAt: broker.createdAt
     };
 
@@ -405,4 +426,14 @@ exports.updateProfileImage = async (req, res) => {
       message: 'Error updating profile image'
     });
   }
+};
+
+module.exports = {
+  getAllBrokers: exports.getAllBrokers,
+  getBrokerById: exports.getBrokerById,
+  getMyBrokerProfile: exports.getMyBrokerProfile,
+  completeBrokerProfile: exports.completeBrokerProfile,
+  getMyProperties: exports.getMyProperties,
+  getBrokerStats: exports.getBrokerStats,
+  updateProfileImage: exports.updateProfileImage
 };

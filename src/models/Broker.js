@@ -41,7 +41,8 @@ const Broker = sequelize.define('Broker', {
   specialization: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: []
+    defaultValue: [],
+    comment: 'e.g., Residential, Commercial, Luxury, Investment'
   },
   address: {
     type: DataTypes.TEXT,
@@ -49,7 +50,8 @@ const Broker = sequelize.define('Broker', {
   },
   city: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: true,
+    comment: 'Broker office city'
   },
   state: {
     type: DataTypes.STRING,
@@ -61,7 +63,8 @@ const Broker = sequelize.define('Broker', {
   },
   servingCities: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: true,
+    comment: 'Cities where broker operates - store as comma-separated or single city'
   },
   about: {
     type: DataTypes.TEXT,
@@ -84,17 +87,20 @@ const Broker = sequelize.define('Broker', {
   propertyTypes: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: []
+    defaultValue: [],
+    comment: 'e.g., Apartment, Villa, House, Commercial, Land'
   },
   listingTypes: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: []
+    defaultValue: [],
+    comment: 'e.g., sale, rent'
   },
   languages: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: []
+    defaultValue: [],
+    comment: 'Languages spoken by broker'
   },
   verificationStatus: {
     type: DataTypes.ENUM('pending', 'verified', 'rejected'),
@@ -121,16 +127,48 @@ const Broker = sequelize.define('Broker', {
   isFeatured: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
-    comment: 'Whether broker is featured'
+    comment: 'Whether broker is featured on homepage'
   },
   isBestAgent: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
-    comment: 'Whether broker is best agent of the month'
+    comment: 'Whether broker is best agent of the month (only one should be true)'
+  },
+  rating: {
+    type: DataTypes.DECIMAL(2, 1),
+    allowNull: true,
+    defaultValue: 0,
+    validate: {
+      min: 0,
+      max: 5
+    },
+    comment: 'Average rating from reviews'
+  },
+  totalReviews: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: 'Total number of reviews received'
   }
 }, {
   timestamps: true,
-  tableName: 'brokers'
+  tableName: 'brokers',
+  indexes: [
+    {
+      fields: ['userId']
+    },
+    {
+      fields: ['verificationStatus']
+    },
+    {
+      fields: ['isFeatured']
+    },
+    {
+      fields: ['isBestAgent']
+    },
+    {
+      fields: ['city']
+    }
+  ]
 });
 
 module.exports = Broker;

@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const messageController = require('../controllers/messageController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // All message routes require authentication
-router.use(authMiddleware);
+router.use(protect);
 
-// Send a message
-router.post('/', messageController.sendMessage);
+// FIXED: Add /send endpoint for frontend compatibility
+router.post('/send', messageController.sendMessage);
+router.post('/', messageController.sendMessage);  // Keep original too
 
 // Get all conversations for logged-in user
 router.get('/conversations', messageController.getConversations);
