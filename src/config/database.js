@@ -4,29 +4,29 @@ require('dotenv').config();
 // Validate DATABASE_URL exists
 if (!process.env.DATABASE_URL) {
   console.error('❌ FATAL ERROR: DATABASE_URL is not defined in environment variables');
-  console.error('💡 Add DATABASE_URL to your Render environment variables');
+  console.error('💡 Add DATABASE_URL to your environment variables');
   process.exit(1);
 }
 
-// PRODUCTION CONFIGURATION FOR NEON POSTGRESQL
+// PRODUCTION CONFIGURATION FOR SUPABASE POSTGRESQL
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   protocol: 'postgres',
   
-  // SSL Configuration - REQUIRED for Neon PostgreSQL
+  // SSL Configuration - REQUIRED for Supabase PostgreSQL
   dialectOptions: {
     ssl: {
       require: true,
-      rejectUnauthorized: false // Required for Neon
+      rejectUnauthorized: false // Required for Supabase
     }
   },
   
   // Logging Configuration
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   
-  // Connection Pool Configuration - Optimized for Neon
+  // Connection Pool Configuration - Optimized for Supabase
   pool: {
-    max: 5,              // Maximum number of connections (Neon free tier limit)
+    max: 5,              // Maximum number of connections (Supabase free tier limit)
     min: 0,              // Minimum connections (0 to save resources)
     acquire: 60000,      // Maximum time (ms) to get connection before error
     idle: 10000,         // Maximum time (ms) connection can be idle before release
@@ -53,7 +53,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
  */
 const testConnection = async () => {
   try {
-    console.log('🔌 Connecting to Neon PostgreSQL...');
+    console.log('🔌 Connecting to Supabase PostgreSQL...');
     
     await sequelize.authenticate();
     
@@ -61,6 +61,7 @@ const testConnection = async () => {
     console.log('📊 Database:', sequelize.config.database);
     console.log('🌐 Host:', sequelize.config.host);
     console.log('🔐 SSL:', sequelize.config.dialectOptions.ssl ? 'Enabled' : 'Disabled');
+    console.log('☁️  Platform: Supabase');
     
     return true;
   } catch (error) {
@@ -70,10 +71,11 @@ const testConnection = async () => {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('');
     console.error('💡 Troubleshooting Steps:');
-    console.error('1. Verify DATABASE_URL in Render environment variables');
-    console.error('2. Check Neon PostgreSQL database is active (not paused)');
+    console.error('1. Verify DATABASE_URL in environment variables');
+    console.error('2. Check Supabase PostgreSQL database is active');
     console.error('3. Ensure connection string includes: ?sslmode=require');
-    console.error('4. Verify network connectivity to Neon');
+    console.error('4. Verify network connectivity to Supabase');
+    console.error('5. Check Supabase project status at https://supabase.com');
     console.error('');
     
     if (error.message.includes('password authentication failed')) {
@@ -81,7 +83,7 @@ const testConnection = async () => {
     }
     
     if (error.message.includes('timeout')) {
-      console.error('⏱️ Connection timeout - check your network or Neon status');
+      console.error('⏱️ Connection timeout - check your network or Supabase status');
     }
     
     if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {

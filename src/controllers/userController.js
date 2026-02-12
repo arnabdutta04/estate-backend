@@ -1,5 +1,6 @@
 const { User, Broker } = require('../models');
 const bcrypt = require('bcryptjs');
+const { uploadImage } = require('../utils/supabaseStorage'); // UPDATED
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -218,14 +219,19 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    const uploadService = require('../services/uploadService');
-    
-    // Upload to Cloudinary
-    const result = await uploadService.uploadToCloudinary(
+    // UPDATED: Upload to Supabase Storage instead of Cloudinary
+    const uploadResult = await uploadImage(
       req.file.buffer,
-      'estate/profiles',
-      'image'
+      req.file.originalname,
+      'profiles' // folder name in Supabase Storage
     );
+
+    if (!uploadResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error uploading profile picture'
+      });
+    }
 
     const user = await User.findByPk(req.user.id);
 
@@ -236,7 +242,7 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    await user.update({ profilePicture: result.url });
+    await user.update({ profilePicture: uploadResult.url });
 
     // Fetch updated user
     const updatedUser = await User.findByPk(user.id, {

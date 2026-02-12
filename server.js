@@ -12,7 +12,7 @@ dotenv.config();
 
 const app = express();
 
-// Trust proxy - Required for Render deployment
+// Trust proxy - Required for cloud deployment (Koyeb/Render)
 app.set('trust proxy', 1);
 
 // Security middleware
@@ -24,9 +24,10 @@ app.use(helmet({
 // Compression middleware
 app.use(compression());
 
-// CORS Configuration - Allow ONLY your Vercel frontend (Production)
+// CORS Configuration - Allow your Vercel frontend (Production)
 const allowedOrigins = [
-  process.env.FRONTEND_URL
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_ADDITIONAL // Optional: for multiple domains
 ].filter(Boolean); // Remove undefined values
 
 app.use(cors({
@@ -63,11 +64,12 @@ const limiter = rateLimit({
 // Apply rate limiting to API routes
 app.use('/api/', limiter);
 
-// Serve static files
+// Serve static files (only if using local storage - not recommended for production)
+// For production, use Supabase Storage or Cloudinary
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// Health check - CRITICAL for Render
+// Health check - CRITICAL for Koyeb/any cloud platform
 app.get('/health', async (req, res) => {
   try {
     await sequelize.authenticate();
@@ -76,7 +78,8 @@ app.get('/health', async (req, res) => {
       message: 'Server is running',
       timestamp: new Date().toISOString(),
       database: 'connected',
-      environment: process.env.NODE_ENV || 'production'
+      environment: process.env.NODE_ENV || 'production',
+      platform: 'Koyeb + Supabase'
     });
   } catch (error) {
     res.status(503).json({
@@ -94,6 +97,7 @@ app.get('/', (req, res) => {
     message: 'Real Estate API - Production Ready',
     version: '1.0.0',
     status: 'running',
+    platform: 'Koyeb + Supabase PostgreSQL',
     documentation: '/api/docs',
     endpoints: {
       health: '/health',
@@ -171,7 +175,7 @@ app.use((err, req, res, next) => {
 });
 
 // Server startup configuration
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 8000;
 
 const startServer = async () => {
   try {
@@ -179,12 +183,15 @@ const startServer = async () => {
     console.log('📍 Environment:', process.env.NODE_ENV || 'production');
     console.log('🌐 Port:', PORT);
     console.log('🔗 Frontend URL:', process.env.FRONTEND_URL);
+    console.log('🗄️  Database Platform: Supabase PostgreSQL');
+    console.log('☁️  Hosting Platform: Koyeb');
     
     // Test database connection
     const connected = await testConnection();
     if (!connected) {
       console.error('❌ Cannot start - database connection failed');
-      console.error('💡 Check your DATABASE_URL in Render environment variables');
+      console.error('💡 Check your DATABASE_URL environment variable');
+      console.error('💡 Make sure Supabase database is accessible');
       process.exit(1);
     }
 
@@ -193,15 +200,15 @@ const startServer = async () => {
     await syncDatabase();
     console.log('✅ Database models synced successfully');
 
-    // Start listening on all network interfaces (required for Render)
+    // Start listening on all network interfaces (required for Koyeb)
     app.listen(PORT, '0.0.0.0', () => {
       console.log('');
       console.log('✅ ========================================');
       console.log('✅  SERVER RUNNING SUCCESSFULLY');
       console.log('✅ ========================================');
-      console.log(`🌐 Server URL: https://estate-backend-oun8.onrender.com`);
-      console.log(`🏥 Health Check: https://estate-backend-oun8.onrender.com/health`);
-      console.log(`📡 API Base: https://estate-backend-oun8.onrender.com/api`);
+      console.log(`🌐 Platform: Koyeb + Supabase`);
+      console.log(`🏥 Health Check: /health`);
+      console.log(`📡 API Base: /api`);
       console.log(`🔐 CORS Allowed: ${process.env.FRONTEND_URL}`);
       console.log('✅ ========================================');
       console.log('');
