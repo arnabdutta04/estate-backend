@@ -3,29 +3,39 @@ const { sequelize } = require('../config/database');
 
 const Schedule = sequelize.define('Schedule', {
   id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
   userId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,  // Changed from INTEGER
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id'
     },
     onUpdate: 'CASCADE',
     onDelete: 'CASCADE'
   },
   propertyId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,  // Changed from INTEGER
     allowNull: false,
     references: {
-      model: 'Properties',
+      model: 'properties',
       key: 'id'
     },
     onUpdate: 'CASCADE',
     onDelete: 'CASCADE'
+  },
+  brokerId: {
+    type: DataTypes.UUID,  // Added to match your index.js associations
+    allowNull: true,
+    references: {
+      model: 'brokers',
+      key: 'id'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'SET NULL'
   },
   scheduledDate: {
     type: DataTypes.DATEONLY,
@@ -47,16 +57,6 @@ const Schedule = sequelize.define('Schedule', {
     defaultValue: 'pending',
     allowNull: false,
     comment: 'Status of the schedule'
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
-  },
-  updatedAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
   }
 }, {
   tableName: 'schedules',
@@ -71,6 +71,10 @@ const Schedule = sequelize.define('Schedule', {
       fields: ['propertyId']
     },
     {
+      name: 'idx_schedule_broker',
+      fields: ['brokerId']
+    },
+    {
       name: 'idx_schedule_status',
       fields: ['status']
     },
@@ -80,20 +84,5 @@ const Schedule = sequelize.define('Schedule', {
     }
   ]
 });
-
-// Define associations
-Schedule.associate = (models) => {
-  // Schedule belongs to a User
-  Schedule.belongsTo(models.User, {
-    foreignKey: 'userId',
-    as: 'user'
-  });
-
-  // Schedule belongs to a Property
-  Schedule.belongsTo(models.Property, {
-    foreignKey: 'propertyId',
-    as: 'property'
-  });
-};
 
 module.exports = Schedule;
