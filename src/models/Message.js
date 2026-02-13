@@ -3,15 +3,15 @@ const { sequelize } = require('../config/database');
 
 const Message = sequelize.define('Message', {
   id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
   },
   senderId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,  // Changed from INTEGER
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id'
     },
     onUpdate: 'CASCADE',
@@ -19,10 +19,10 @@ const Message = sequelize.define('Message', {
     comment: 'User who sent the message'
   },
   receiverId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,  // Changed from INTEGER
     allowNull: false,
     references: {
-      model: 'Users',
+      model: 'users',
       key: 'id'
     },
     onUpdate: 'CASCADE',
@@ -30,15 +30,26 @@ const Message = sequelize.define('Message', {
     comment: 'User who receives the message'
   },
   propertyId: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.UUID,  // Changed from INTEGER
     allowNull: true,
     references: {
-      model: 'Properties',
+      model: 'properties',
       key: 'id'
     },
     onUpdate: 'CASCADE',
     onDelete: 'SET NULL',
     comment: 'Optional - related property'
+  },
+  parentMessageId: {
+    type: DataTypes.UUID,  // Added for message threading
+    allowNull: true,
+    references: {
+      model: 'messages',
+      key: 'id'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'SET NULL',
+    comment: 'Parent message for threading'
   },
   subject: {
     type: DataTypes.STRING(255),
@@ -56,16 +67,6 @@ const Message = sequelize.define('Message', {
     defaultValue: false,
     allowNull: false,
     comment: 'Whether the message has been read'
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
-  },
-  updatedAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
   }
 }, {
   tableName: 'messages',
@@ -93,26 +94,5 @@ const Message = sequelize.define('Message', {
     }
   ]
 });
-
-// Define associations
-Message.associate = (models) => {
-  // Message belongs to a sender (User)
-  Message.belongsTo(models.User, {
-    foreignKey: 'senderId',
-    as: 'sender'
-  });
-
-  // Message belongs to a receiver (User)
-  Message.belongsTo(models.User, {
-    foreignKey: 'receiverId',
-    as: 'receiver'
-  });
-
-  // Message optionally belongs to a Property
-  Message.belongsTo(models.Property, {
-    foreignKey: 'propertyId',
-    as: 'property'
-  });
-};
 
 module.exports = Message;
