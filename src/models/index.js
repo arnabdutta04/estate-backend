@@ -1,5 +1,8 @@
+// src/models/index.js
+const { sequelize } = require('../config/database'); 
 const { DataTypes } = require('sequelize');
 
+// Initialize models
 const User = require('./User')(sequelize, DataTypes);
 const Broker = require('./Broker')(sequelize, DataTypes);
 const Property = require('./Property')(sequelize, DataTypes);
