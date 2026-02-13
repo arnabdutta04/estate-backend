@@ -30,13 +30,14 @@ const Property = sequelize.define('Property', {
     allowNull: true
   },
   propertyType: {
-    type: DataTypes.STRING,
+    type: DataTypes.ENUM('Apartment', 'Villa', 'House', 'Commercial', 'Land', 'Office', 'Shop', 'Warehouse'),
     allowNull: false,
-    comment: 'e.g., Apartment, Villa, House, Commercial, Land, Office, Shop, Warehouse'
+    comment: 'Property type - matches PROPERTY_TYPES constants'
   },
   listingType: {
     type: DataTypes.ENUM('sale', 'rent'),
-    allowNull: false
+    allowNull: false,
+    comment: 'Listing type - matches LISTING_TYPES constants'
   },
   price: {
     type: DataTypes.DECIMAL(15, 2),
@@ -115,12 +116,13 @@ const Property = sequelize.define('Property', {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
     defaultValue: [],
-    comment: 'Array of image URLs'
+    comment: 'Array of image URLs from Cloudinary'
   },
   status: {
     type: DataTypes.ENUM('active', 'pending', 'sold', 'rented', 'inactive'),
     defaultValue: 'active',
-    allowNull: false
+    allowNull: false,
+    comment: 'Property status - matches PROPERTY_STATUS constants'
   },
   isFeatured: {
     type: DataTypes.BOOLEAN,
@@ -156,7 +158,8 @@ const Property = sequelize.define('Property', {
   ownerType: {
     type: DataTypes.ENUM('broker', 'owner'),
     defaultValue: 'broker',
-    allowNull: false
+    allowNull: false,
+    comment: 'Owner type - matches OWNER_TYPES constants'
   },
   // SEO fields
   metaTitle: {

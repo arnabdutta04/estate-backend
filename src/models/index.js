@@ -1,6 +1,6 @@
 const { sequelize } = require('../config/database');
 
-// Import models directly (they're already defined)
+// Import all models
 const User = require('./User');
 const Broker = require('./Broker');
 const Property = require('./Property');

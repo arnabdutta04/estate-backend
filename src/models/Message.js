@@ -8,89 +8,105 @@ const Message = sequelize.define('Message', {
     primaryKey: true
   },
   senderId: {
-    type: DataTypes.UUID,  // Changed from INTEGER
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'users',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
-    onDelete: 'CASCADE',
-    comment: 'User who sent the message'
+    onDelete: 'CASCADE'
   },
   receiverId: {
-    type: DataTypes.UUID,  // Changed from INTEGER
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'users',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
-    onDelete: 'CASCADE',
-    comment: 'User who receives the message'
+    onDelete: 'CASCADE'
   },
   propertyId: {
-    type: DataTypes.UUID,  // Changed from INTEGER
+    type: DataTypes.UUID,
     allowNull: true,
     references: {
       model: 'properties',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
     onDelete: 'SET NULL',
-    comment: 'Optional - related property'
+    comment: 'Property related to this message (optional)'
   },
   parentMessageId: {
-    type: DataTypes.UUID,  // Added for message threading
+    type: DataTypes.UUID,
     allowNull: true,
     references: {
       model: 'messages',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
     onDelete: 'SET NULL',
-    comment: 'Parent message for threading'
+    comment: 'For threaded conversations/replies'
   },
   subject: {
-    type: DataTypes.STRING(255),
+    type: DataTypes.STRING,
     allowNull: true,
-    defaultValue: 'Property Inquiry',
-    comment: 'Message subject line'
+    defaultValue: 'Property Inquiry'
   },
-  message: {
+  content: {
     type: DataTypes.TEXT,
     allowNull: false,
-    comment: 'Message content'
+    validate: {
+      notEmpty: {
+        msg: 'Message content is required'
+      }
+    }
+  },
+  messageType: {
+    type: DataTypes.ENUM('inquiry', 'offer', 'general', 'support'),
+    defaultValue: 'general',
+    allowNull: false
   },
   isRead: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
-    allowNull: false,
-    comment: 'Whether the message has been read'
+    defaultValue: false
+  },
+  readAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  attachments: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
+    allowNull: true,
+    defaultValue: [],
+    comment: 'Array of attachment URLs'
+  },
+  isArchived: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  isStarred: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
-  tableName: 'messages',
   timestamps: true,
+  tableName: 'messages',
   indexes: [
     {
-      name: 'idx_message_sender',
       fields: ['senderId']
     },
     {
-      name: 'idx_message_receiver',
       fields: ['receiverId']
     },
     {
-      name: 'idx_message_property',
       fields: ['propertyId']
     },
     {
-      name: 'idx_message_read',
+      fields: ['parentMessageId']
+    },
+    {
       fields: ['isRead']
     },
     {
-      name: 'idx_message_conversation',
-      fields: ['senderId', 'receiverId']
+      fields: ['createdAt']
     }
   ]
 });
