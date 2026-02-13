@@ -1,11 +1,12 @@
-// src/models/index.js
-const { sequelize } = require('../config/database');
-const User = require('./User');
-const Broker = require('./Broker');
-const Property = require('./Property');
-const Contact = require('./Contact');
-const Schedule = require('./Schedule');
-const Message = require('./Message');
+const { DataTypes } = require('sequelize');
+
+const User = require('./User')(sequelize, DataTypes);
+const Broker = require('./Broker')(sequelize, DataTypes);
+const Property = require('./Property')(sequelize, DataTypes);
+const Contact = require('./Contact')(sequelize, DataTypes);
+const Schedule = require('./Schedule')(sequelize, DataTypes);
+const Message = require('./Message')(sequelize, DataTypes);
+
 
 // ===========================================
 // MODEL ASSOCIATIONS
