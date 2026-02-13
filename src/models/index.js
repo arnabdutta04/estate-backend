@@ -1,13 +1,12 @@
 const { sequelize } = require('../config/database');
-const { DataTypes } = require('sequelize');
 
-// 2️⃣ Initialize models
-const User = require('./User')(sequelize, DataTypes);
-const Broker = require('./Broker')(sequelize, DataTypes);
-const Property = require('./Property')(sequelize, DataTypes);
-const Contact = require('./Contact')(sequelize, DataTypes);
-const Schedule = require('./Schedule')(sequelize, DataTypes);
-const Message = require('./Message')(sequelize, DataTypes);
+// Import models directly (they're already defined)
+const User = require('./User');
+const Broker = require('./Broker');
+const Property = require('./Property');
+const Contact = require('./Contact');
+const Schedule = require('./Schedule');
+const Message = require('./Message');
 
 // ===========================================
 // MODEL ASSOCIATIONS
@@ -85,7 +84,7 @@ Message.belongsTo(User, {
   onDelete: 'CASCADE'
 });
 
-// User - Messages (Receiver) (One-to-Many) - Fixed receiverId
+// User - Messages (Receiver) (One-to-Many)
 User.hasMany(Message, {
   foreignKey: 'receiverId',
   as: 'receivedMessages',

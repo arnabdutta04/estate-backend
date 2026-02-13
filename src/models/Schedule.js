@@ -8,78 +8,105 @@ const Schedule = sequelize.define('Schedule', {
     primaryKey: true
   },
   userId: {
-    type: DataTypes.UUID,  // Changed from INTEGER
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'users',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
-    onDelete: 'CASCADE'
+    onDelete: 'CASCADE',
+    comment: 'User who scheduled the visit'
   },
   propertyId: {
-    type: DataTypes.UUID,  // Changed from INTEGER
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'properties',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
     onDelete: 'CASCADE'
   },
   brokerId: {
-    type: DataTypes.UUID,  // Added to match your index.js associations
+    type: DataTypes.UUID,
     allowNull: true,
     references: {
       model: 'brokers',
       key: 'id'
     },
-    onUpdate: 'CASCADE',
-    onDelete: 'SET NULL'
+    onDelete: 'SET NULL',
+    comment: 'Broker associated with the property'
   },
   scheduledDate: {
     type: DataTypes.DATEONLY,
     allowNull: false,
-    comment: 'Date of the scheduled visit (YYYY-MM-DD)'
+    validate: {
+      isDate: {
+        msg: 'Please provide a valid date'
+      }
+    }
   },
   scheduledTime: {
     type: DataTypes.TIME,
-    allowNull: false,
-    comment: 'Time of the scheduled visit (HH:MM:SS)'
-  },
-  message: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Optional message from the user'
+    allowNull: false
   },
   status: {
-    type: DataTypes.ENUM('pending', 'confirmed', 'rejected', 'completed', 'cancelled'),
+    type: DataTypes.ENUM('pending', 'confirmed', 'completed', 'cancelled', 'rescheduled'),
     defaultValue: 'pending',
-    allowNull: false,
-    comment: 'Status of the schedule'
+    allowNull: false
+  },
+  visitType: {
+    type: DataTypes.ENUM('in-person', 'virtual'),
+    defaultValue: 'in-person',
+    allowNull: false
+  },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'User notes or special requests'
+  },
+  brokerNotes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Broker internal notes'
+  },
+  cancelledBy: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    },
+    comment: 'User who cancelled the schedule'
+  },
+  cancellationReason: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  completedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  confirmedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
-  tableName: 'schedules',
   timestamps: true,
+  tableName: 'schedules',
   indexes: [
     {
-      name: 'idx_schedule_user',
       fields: ['userId']
     },
     {
-      name: 'idx_schedule_property',
       fields: ['propertyId']
     },
     {
-      name: 'idx_schedule_broker',
       fields: ['brokerId']
     },
     {
-      name: 'idx_schedule_status',
       fields: ['status']
     },
     {
-      name: 'idx_schedule_date',
       fields: ['scheduledDate']
     }
   ]

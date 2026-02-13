@@ -21,23 +21,22 @@ const Property = sequelize.define('Property', {
     allowNull: false,
     validate: {
       notEmpty: {
-        msg: 'Title is required'
+        msg: 'Property title is required'
       }
     }
   },
   description: {
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: true
   },
   propertyType: {
     type: DataTypes.STRING,
     allowNull: false,
-    comment: 'e.g., Apartment, Villa, House, Commercial, Land'
+    comment: 'e.g., Apartment, Villa, House, Commercial, Land, Office, Shop, Warehouse'
   },
   listingType: {
     type: DataTypes.ENUM('sale', 'rent'),
-    allowNull: false,
-    defaultValue: 'sale'
+    allowNull: false
   },
   price: {
     type: DataTypes.DECIMAL(15, 2),
@@ -49,39 +48,95 @@ const Property = sequelize.define('Property', {
       }
     }
   },
-  // Location
-  location: {
-    type: DataTypes.JSONB,
-    allowNull: false,
-    defaultValue: {},
-    comment: 'Stores address, city, state, zipCode, country, coordinates'
+  // Location fields
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  city: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  state: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  pincode: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  country: {
+    type: DataTypes.STRING,
+    defaultValue: 'India',
+    allowNull: true
+  },
+  latitude: {
+    type: DataTypes.DECIMAL(10, 8),
+    allowNull: true
+  },
+  longitude: {
+    type: DataTypes.DECIMAL(11, 8),
+    allowNull: true
   },
   // Specifications
-  specifications: {
-    type: DataTypes.JSONB,
-    allowNull: false,
-    defaultValue: {},
-    comment: 'Stores bedrooms, bathrooms, area, furnished, etc.'
+  bedrooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  bathrooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  area: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    comment: 'Area in square feet'
+  },
+  furnished: {
+    type: DataTypes.ENUM('furnished', 'semi-furnished', 'unfurnished'),
+    allowNull: true
   },
   // Facilities
-  facilities: {
-    type: DataTypes.JSONB,
+  amenities: {
+    type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: {},
-    comment: 'Stores furnished, petAllowed, parkingSlot, kitchen, wifi, ac, etc.'
+    defaultValue: [],
+    comment: 'e.g., Parking, Gym, Pool, Security, WiFi, AC'
+  },
+  petAllowed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  parkingSlots: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
   images: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
-    defaultValue: []
+    defaultValue: [],
+    comment: 'Array of image URLs'
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'pending', 'sold', 'rented', 'inactive'),
+    defaultValue: 'active',
+    allowNull: false
+  },
+  isFeatured: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  views: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  inquiries: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
   yearBuilt: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    validate: {
-      min: 1800,
-      max: new Date().getFullYear() + 5
-    }
+    allowNull: true
   },
   age: {
     type: DataTypes.INTEGER,
@@ -98,26 +153,10 @@ const Property = sequelize.define('Property', {
     allowNull: true,
     comment: 'e.g., Modern, Traditional, Contemporary, Colonial'
   },
-  status: {
-    type: DataTypes.ENUM('active', 'pending', 'sold', 'rented', 'inactive'),
-    defaultValue: 'active',
-    allowNull: false
-  },
-  views: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  },
-  inquiries: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  },
-  isFeatured: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
   ownerType: {
     type: DataTypes.ENUM('broker', 'owner'),
-    defaultValue: 'broker'
+    defaultValue: 'broker',
+    allowNull: false
   },
   // SEO fields
   metaTitle: {
@@ -136,6 +175,9 @@ const Property = sequelize.define('Property', {
       fields: ['brokerId']
     },
     {
+      fields: ['city']
+    },
+    {
       fields: ['propertyType']
     },
     {
@@ -143,6 +185,9 @@ const Property = sequelize.define('Property', {
     },
     {
       fields: ['status']
+    },
+    {
+      fields: ['isFeatured']
     },
     {
       fields: ['price']
