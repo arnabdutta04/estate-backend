@@ -1,5 +1,26 @@
 const { Broker } = require('../models');
 
+// Authorize specific roles - flexible version
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized'
+      });
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role '${req.user.role}' is not authorized to access this route`
+      });
+    }
+
+    next();
+  };
+};
+
 // Check if broker is verified
 exports.checkBrokerVerification = async (req, res, next) => {
   try {
@@ -82,6 +103,17 @@ exports.isCustomer = (req, res, next) => {
     return res.status(403).json({
       success: false,
       message: 'Access denied. Customer role required.'
+    });
+  }
+  next();
+};
+
+// Check if user is broker OR admin
+exports.isBrokerOrAdmin = (req, res, next) => {
+  if (req.user.role !== 'broker' && req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Broker or Admin role required.'
     });
   }
   next();
