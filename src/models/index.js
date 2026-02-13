@@ -27,23 +27,11 @@ Broker.belongsTo(User, {
 Broker.hasMany(Property, {
   foreignKey: 'brokerId',
   as: 'properties',
-  onDelete: 'SET NULL'
+  onDelete: 'CASCADE'
 });
 Property.belongsTo(Broker, {
   foreignKey: 'brokerId',
   as: 'broker',
-  onDelete: 'SET NULL'
-});
-
-// User - Properties (One-to-Many) - For property owners
-User.hasMany(Property, {
-  foreignKey: 'ownerId',
-  as: 'ownedProperties',
-  onDelete: 'CASCADE'
-});
-Property.belongsTo(User, {
-  foreignKey: 'ownerId',
-  as: 'owner',
   onDelete: 'CASCADE'
 });
 
@@ -95,15 +83,15 @@ Message.belongsTo(User, {
   onDelete: 'CASCADE'
 });
 
-// User - Messages (Recipient) (One-to-Many)
+// User - Messages (Receiver) (One-to-Many) - Fixed receiverId
 User.hasMany(Message, {
-  foreignKey: 'recipientId',
+  foreignKey: 'receiverId',
   as: 'receivedMessages',
   onDelete: 'CASCADE'
 });
 Message.belongsTo(User, {
-  foreignKey: 'recipientId',
-  as: 'recipient',
+  foreignKey: 'receiverId',
+  as: 'receiver',
   onDelete: 'CASCADE'
 });
 
@@ -131,7 +119,7 @@ Message.belongsTo(Message, {
   onDelete: 'SET NULL'
 });
 
-// User - Contact (One-to-Many) - Optional if you want to track contact forms by user
+// User - Contact (One-to-Many)
 User.hasMany(Contact, {
   foreignKey: 'userId',
   as: 'contacts',
@@ -143,21 +131,6 @@ Contact.belongsTo(User, {
   onDelete: 'SET NULL'
 });
 
-// ===========================================
-// SYNC DATABASE (DEVELOPMENT ONLY)
-// ===========================================
-const syncDatabase = async () => {
-  try {
-    if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
-      console.log('✅ All models synchronized with database');
-    }
-  } catch (error) {
-    console.error('❌ Error synchronizing models:', error);
-    throw error;
-  }
-};
-
 // Export all models
 module.exports = {
   sequelize,
@@ -166,6 +139,5 @@ module.exports = {
   Property,
   Contact,
   Schedule,
-  Message,
-  syncDatabase
+  Message
 };
