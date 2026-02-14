@@ -8,13 +8,17 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      'https://estatefrontend-drab.vercel.app/',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'https://estatefrontend-drab.vercel.app',
       process.env.FRONTEND_URL
     ].filter(Boolean); // Remove undefined values
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.log('❌ Blocked by CORS:', origin);
       // For development, allow all origins
       if (process.env.NODE_ENV === 'development') {
         callback(null, true);

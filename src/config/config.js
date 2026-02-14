@@ -4,13 +4,13 @@ require('dotenv').config();
 const config = {
   // Environment
   env: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 5000,
+  port: process.env.PORT || 8000,
   
   // Frontend URL (CORS)
-  frontendUrl: process.env.FRONTEND_URL || 'https://estate-frontend-62p7.onrender.com',
+  frontendUrl: process.env.FRONTEND_URL || 'https://estatefrontend-drab.vercel.app',
   
   // Backend URL
-  backendUrl: process.env.BACKEND_URL || 'https://estate-backend-oun8.onrender.com',
+  backendUrl: process.env.BACKEND_URL || 'https://shrill-amphibian-estate-backend-f9bf3bf3.koyeb.app',
   
   // Database
   database: {
