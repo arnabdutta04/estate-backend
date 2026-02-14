@@ -98,10 +98,7 @@ const User = sequelize.define('User', {
     defaultValue: 0.00,
     allowNull: false,
     validate: {
-      min: {
-        args: 0,
-        msg: 'Balance cannot be negative'
-      }
+      min: 0  // ✅ Changed: Simplified validation format
     }
   },
   // Preferences
