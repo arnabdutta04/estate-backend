@@ -8,9 +8,6 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174',
       'https://estatefrontend-drab.vercel.app',
       process.env.FRONTEND_URL
     ].filter(Boolean); // Remove undefined values
@@ -19,12 +16,7 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.log('❌ Blocked by CORS:', origin);
-      // For development, allow all origins
-      if (process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      callback(new Error('Not allowed by CORS'));
     }
   },
 
