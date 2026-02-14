@@ -4,21 +4,31 @@ require('dotenv').config();
 // Validate DATABASE_URL exists
 if (!process.env.DATABASE_URL) {
   console.error('❌ FATAL ERROR: DATABASE_URL is not defined in environment variables');
-  console.error('💡 Add DATABASE_URL to your environment variables');
+  console.error('💡 Add DATABASE_URL to your Koyeb environment variables');
   process.exit(1);
 }
+
+console.log('🗄️  Database Platform: Supabase PostgreSQL');
+console.log('☁️  Hosting Platform: Koyeb');
 
 // PRODUCTION CONFIGURATION FOR SUPABASE POSTGRESQL
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   protocol: 'postgres',
   
-  // SSL Configuration - REQUIRED for Supabase PostgreSQL
+  // SSL Configuration - REQUIRED for Supabase
   dialectOptions: {
     ssl: {
       require: true,
       rejectUnauthorized: false // Required for Supabase
-    }
+    },
+    // Increase connection timeout for Supabase pooler
+    connectTimeout: 60000, // 60 seconds
+    connectionTimeoutMillis: 60000,
+    statement_timeout: 30000,
+    query_timeout: 30000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
   },
   
   // Logging Configuration
@@ -26,24 +36,25 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   
   // Connection Pool Configuration - Optimized for Supabase
   pool: {
-    max: 5,              // Maximum number of connections (Supabase free tier limit)
-    min: 0,              // Minimum connections (0 to save resources)
-    acquire: 60000,      // Maximum time (ms) to get connection before error
-    idle: 10000,         // Maximum time (ms) connection can be idle before release
-    evict: 10000         // Time interval (ms) to check for idle connections
+    max: 10,             // Maximum number of connections
+    min: 2,              // Minimum connections
+    acquire: 60000,      // 60 seconds - Maximum time to get connection
+    idle: 10000,         // Maximum time connection can be idle
+    evict: 10000,        // Time interval to check for idle connections
+    maxUses: 7500,       // Maximum uses per connection before refresh
   },
   
   // Query Configuration
   define: {
-    timestamps: true,    // Add createdAt and updatedAt
-    underscored: false,  // Use camelCase instead of snake_case
-    freezeTableName: true // Prevent Sequelize from pluralizing table names
+    timestamps: true,
+    underscored: false,
+    freezeTableName: true
   },
   
   // Retry Configuration for network issues
   retry: {
-    max: 3,              // Maximum retry attempts
-    timeout: 3000        // Timeout between retries
+    max: 5,              // Increase retry attempts
+    timeout: 5000        // Timeout between retries
   }
 });
 
@@ -61,7 +72,6 @@ const testConnection = async () => {
     console.log('📊 Database:', sequelize.config.database);
     console.log('🌐 Host:', sequelize.config.host);
     console.log('🔐 SSL:', sequelize.config.dialectOptions.ssl ? 'Enabled' : 'Disabled');
-    console.log('☁️  Platform: Supabase');
     
     return true;
   } catch (error) {
@@ -82,8 +92,9 @@ const testConnection = async () => {
       console.error('🔑 Password authentication failed - check your credentials');
     }
     
-    if (error.message.includes('timeout')) {
-      console.error('⏱️ Connection timeout - check your network or Supabase status');
+    if (error.message.includes('timeout') || error.message.includes('timed out')) {
+      console.error('⏱️ Connection timeout - Supabase may be paused or unreachable');
+      console.error('💡 Try using Session Pooler connection string');
     }
     
     if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
@@ -104,17 +115,15 @@ const syncDatabase = async (options = {}) => {
     console.log('🔄 Syncing database models...');
     
     const syncOptions = {
-      alter: false,    // Don't alter existing tables (safer for production)
-      force: false,    // Don't drop tables (NEVER use true in production)
+      alter: false,
+      force: false,
       ...options
     };
     
-    // Sync all models
     await sequelize.sync(syncOptions);
     
     console.log('✅ Database models synced successfully');
     
-    // Log synced models
     const models = Object.keys(sequelize.models);
     if (models.length > 0) {
       console.log('📋 Synced models:', models.join(', '));
@@ -177,13 +186,12 @@ const executeQuery = async (query, options = {}) => {
   }
 };
 
-// Export Sequelize instance and utilities
 module.exports = {
-  sequelize,           // Main Sequelize instance
-  Sequelize,           // Sequelize constructor (for data types)
-  testConnection,      // Test database connection
-  syncDatabase,        // Sync models with database
-  closeConnection,     // Close connection gracefully
-  getPoolStatus,       // Get connection pool statistics
-  executeQuery         // Execute raw SQL queries
+  sequelize,
+  Sequelize,
+  testConnection,
+  syncDatabase,
+  closeConnection,
+  getPoolStatus,
+  executeQuery
 };
