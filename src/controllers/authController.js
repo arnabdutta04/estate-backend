@@ -28,9 +28,12 @@ exports.register = async (req, res) => {
 
     const { name, email, phone, password, role } = req.body;
 
+    console.log('📝 Registration attempt:', { email, phone, role }); // Debug log
+
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
+      console.log('❌ Email already exists:', email);
       return res.status(400).json({
         success: false,
         message: 'Email already exists'
@@ -40,11 +43,14 @@ exports.register = async (req, res) => {
     // Check if phone already exists
     const existingPhone = await User.findOne({ where: { phone } });
     if (existingPhone) {
+      console.log('❌ Phone already exists:', phone);
       return res.status(400).json({
         success: false,
         message: 'Phone number already exists'
       });
     }
+
+    console.log('✅ Creating user...'); // Debug log
 
     // Create user
     const user = await User.create({
@@ -56,16 +62,29 @@ exports.register = async (req, res) => {
       balance: 0.00
     });
 
+    console.log('✅ User created:', user.id); // Debug log
+
     // If role is broker, create broker profile with pending status
     if (role === 'broker') {
+      console.log('✅ Creating broker profile...'); // Debug log
       await Broker.create({
         userId: user.id,
         verificationStatus: 'pending'
       });
     }
 
+    console.log('✅ Generating token...'); // Debug log
+
+    // Check if JWT_SECRET exists
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET not set!');
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
+
     // Generate token
     const token = generateToken(user.id);
+
+    console.log('✅ Fetching user with profile...'); // Debug log
 
     // Get user with broker profile if exists
     const userWithProfile = await User.findByPk(user.id, {
@@ -77,6 +96,8 @@ exports.register = async (req, res) => {
       attributes: { exclude: ['password'] }
     });
 
+    console.log('✅ Registration successful!'); // Debug log
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -85,10 +106,12 @@ exports.register = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('❌ Registration error:', error);
+    console.error('Error stack:', error.stack); // More detailed error
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error during registration'
+      message: error.message || 'Server error during registration',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -100,8 +123,11 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('🔐 Login attempt:', { email }); // Debug log
+
     // Validate input
     if (!email || !password) {
+      console.log('❌ Missing credentials');
       return res.status(400).json({
         success: false,
         message: 'Please provide email and password'
@@ -119,6 +145,7 @@ exports.login = async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ User not found:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -127,6 +154,7 @@ exports.login = async (req, res) => {
 
     // Check if user is active
     if (!user.isActive) {
+      console.log('❌ Account deactivated:', email);
       return res.status(403).json({
         success: false,
         message: 'Account is deactivated. Please contact support.'
@@ -136,20 +164,33 @@ exports.login = async (req, res) => {
     // Verify password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
+      console.log('❌ Invalid password for:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
+    console.log('✅ Password verified, updating last login...'); // Debug log
+
     // Update last login
     await user.update({ lastLogin: new Date() });
+
+    console.log('✅ Generating token...'); // Debug log
+
+    // Check if JWT_SECRET exists
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET not set!');
+      throw new Error('JWT_SECRET environment variable is not set');
+    }
 
     // Generate token
     const token = generateToken(user.id);
 
     // Prepare user data (exclude password)
     const userData = user.toJSON();
+
+    console.log('✅ Login successful!'); // Debug log
 
     res.status(200).json({
       success: true,
@@ -159,10 +200,12 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
+    console.error('Error stack:', error.stack); // More detailed error
     res.status(500).json({
       success: false,
-      message: 'Server error during login'
+      message: 'Server error during login',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -172,6 +215,8 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.verifyToken = async (req, res) => {
   try {
+    console.log('🔍 Verifying token for user:', req.user.id); // Debug log
+
     // User is already attached to req by authMiddleware
     const user = await User.findByPk(req.user.id, {
       include: [{
@@ -183,11 +228,14 @@ exports.verifyToken = async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ User not found:', req.user.id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    console.log('✅ Token verified successfully'); // Debug log
 
     res.status(200).json({
       success: true,
@@ -195,10 +243,12 @@ exports.verifyToken = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('❌ Token verification error:', error);
+    console.error('Error stack:', error.stack); // More detailed error
     res.status(500).json({
       success: false,
-      message: 'Server error during verification'
+      message: 'Server error during verification',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -208,6 +258,8 @@ exports.verifyToken = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
   try {
+    console.log('👤 Getting profile for user:', req.user.id); // Debug log
+
     const user = await User.findByPk(req.user.id, {
       include: [{
         model: Broker,
@@ -218,11 +270,14 @@ exports.getMe = async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ User not found:', req.user.id);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
+
+    console.log('✅ Profile retrieved successfully'); // Debug log
 
     res.status(200).json({
       success: true,
@@ -230,10 +285,12 @@ exports.getMe = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('❌ Get profile error:', error);
+    console.error('Error stack:', error.stack); // More detailed error
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -243,6 +300,8 @@ exports.getMe = async (req, res) => {
 // @access  Private
 exports.logout = async (req, res) => {
   try {
+    console.log('👋 User logging out:', req.user?.id); // Debug log
+
     // In a stateless JWT system, logout is mainly client-side
     // But we can log it or implement token blacklisting if needed
     
@@ -252,10 +311,12 @@ exports.logout = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('❌ Logout error:', error);
+    console.error('Error stack:', error.stack); // More detailed error
     res.status(500).json({
       success: false,
-      message: 'Server error during logout'
+      message: 'Server error during logout',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
