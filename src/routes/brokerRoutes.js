@@ -1,31 +1,64 @@
+// brokerRoutes.js - CORRECTED VERSION
 const express = require('express');
 const router = express.Router();
+const { protect, authorize } = require('../middleware/authMiddleware');
 const brokerController = require('../controllers/brokerController');
-const { protect } = require('../middleware/authMiddleware');
-const { isBroker, checkBrokerVerification } = require('../middleware/roleMiddleware');
 
 // ============================================
-// PUBLIC ROUTES - Must be defined FIRST
+// PUBLIC ROUTES (No authentication required)
 // ============================================
+
+// Get all verified brokers
 router.get('/', brokerController.getAllBrokers);
 
 // ============================================
-// PROTECTED BROKER ROUTES - Must be BEFORE /:id
+// PROTECTED ROUTES (Broker only)
 // ============================================
-// These routes require authentication and broker role
-router.get('/me', protect, isBroker, brokerController.getMyBrokerProfile);
-router.put('/complete-profile', protect, isBroker, brokerController.completeBrokerProfile);
-router.put('/profile-image', protect, isBroker, brokerController.updateProfileImage);
+// ⚠️ IMPORTANT: These routes with specific paths MUST come BEFORE /:id route
+// Otherwise Express will treat "me", "stats" etc. as ID parameters
 
-// Broker stats and properties (require verification)
-router.get('/stats', protect, isBroker, checkBrokerVerification, brokerController.getBrokerStats);
-router.get('/my-properties', protect, isBroker, checkBrokerVerification, brokerController.getMyProperties);
+// Get current broker's profile
+router.get('/me', 
+  protect, 
+  authorize('broker'), 
+  brokerController.getMyBrokerProfile
+);
+
+// Update/complete broker profile
+router.put('/complete-profile', 
+  protect, 
+  authorize('broker'), 
+  brokerController.completeBrokerProfile
+);
+
+// Get broker statistics
+router.get('/stats', 
+  protect, 
+  authorize('broker'), 
+  brokerController.getBrokerStats
+);
+
+// Get broker's properties
+router.get('/my-properties', 
+  protect, 
+  authorize('broker'), 
+  brokerController.getMyProperties
+);
+
+// Update broker profile image
+router.put('/profile-image', 
+  protect, 
+  authorize('broker'), 
+  brokerController.updateProfileImage
+);
 
 // ============================================
-// PUBLIC DYNAMIC ROUTE - Must be LAST
+// PUBLIC ROUTES WITH PARAMETERS
 // ============================================
-// This catches /brokers/:id where :id is any value
-// If this was first, it would catch /brokers/me as "id=me"
+// ⚠️ IMPORTANT: Routes with :id parameter MUST be LAST
+// Otherwise they will catch all routes like /me, /stats etc.
+
+// Get single broker by ID (public)
 router.get('/:id', brokerController.getBrokerById);
 
 module.exports = router;
