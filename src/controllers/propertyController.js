@@ -9,15 +9,16 @@ exports.getAllProperties = async (req, res) => {
     const {
       propertyType,
       listingType,
-      propertyFor, // ADDED: Frontend compatibility
+      propertyFor, // Frontend compatibility (same as listingType)
       city,
       minPrice,
       maxPrice,
       bedrooms,
       bathrooms,
+      diningRooms,
       keyword,
-      facilities, // ADDED: Handle facilities filtering
-      style, // ADDED: Handle style filtering
+      facilities, // Array of facility names
+      style,
       status = 'active',
       page = 1,
       limit = 12
@@ -28,59 +29,107 @@ exports.getAllProperties = async (req, res) => {
       status: status
     };
 
+    // Property Type Filter
     if (propertyType) {
       whereConditions.propertyType = propertyType;
     }
 
-    // FIXED: Support both listingType and propertyFor
+    // Listing Type Filter (rent/buy)
     if (listingType || propertyFor) {
       whereConditions.listingType = listingType || propertyFor;
     }
 
-    // FIXED: Handle style filtering
+    // Style Filter
     if (style) {
       whereConditions.style = style;
     }
 
+    // Price Range Filter - Manual input support
     if (minPrice || maxPrice) {
       whereConditions.price = {};
-      if (minPrice) whereConditions.price[Op.gte] = parseFloat(minPrice);
-      if (maxPrice) whereConditions.price[Op.lte] = parseFloat(maxPrice);
+      if (minPrice && minPrice !== '' && !isNaN(parseFloat(minPrice))) {
+        whereConditions.price[Op.gte] = parseFloat(minPrice);
+      }
+      if (maxPrice && maxPrice !== '' && !isNaN(parseFloat(maxPrice))) {
+        whereConditions.price[Op.lte] = parseFloat(maxPrice);
+      }
     }
 
-    if (keyword) {
+    // Keyword Search
+    if (keyword && keyword.trim() !== '') {
       whereConditions[Op.or] = [
         { title: { [Op.iLike]: `%${keyword}%` } },
-        { description: { [Op.iLike]: `%${keyword}%` } }
+        { description: { [Op.iLike]: `%${keyword}%` } },
+        { address: { [Op.iLike]: `%${keyword}%` } }
       ];
     }
 
-    // FIXED: Correct JSONB city filtering
-    if (city) {
-      whereConditions['location.city'] = {
+    // City Filter
+    if (city && city.trim() !== '') {
+      whereConditions.city = {
         [Op.iLike]: `%${city}%`
       };
     }
 
-    // FIXED: Correct JSONB bedrooms filtering
-    if (bedrooms) {
-      whereConditions['specifications.bedrooms'] = {
+    // Bedrooms Filter (minimum required)
+    if (bedrooms && parseInt(bedrooms) > 0) {
+      whereConditions.bedrooms = {
         [Op.gte]: parseInt(bedrooms)
       };
     }
 
-    // FIXED: Correct JSONB bathrooms filtering
-    if (bathrooms) {
-      whereConditions['specifications.bathrooms'] = {
+    // Bathrooms Filter (minimum required)
+    if (bathrooms && parseInt(bathrooms) > 0) {
+      whereConditions.bathrooms = {
         [Op.gte]: parseInt(bathrooms)
       };
     }
 
-    // ADDED: Facilities filtering
+    // Dining Rooms Filter (minimum required)
+    if (diningRooms && parseInt(diningRooms) > 0) {
+      whereConditions.diningRooms = {
+        [Op.gte]: parseInt(diningRooms)
+      };
+    }
+
+    // Facilities Filter - Check individual boolean fields
     if (facilities) {
       const facilityArray = Array.isArray(facilities) ? facilities : [facilities];
+      
+      // Map frontend facility names to database column names
+      const facilityMapping = {
+        'furnished': 'furnished',
+        'petAllowed': 'petAllowed',
+        'parkingSlot': 'parkingSlot',
+        'kitchen': 'kitchen',
+        'wifi': 'wifi',
+        'ac': 'ac',
+        'swimmingPool': 'swimmingPool',
+        'gym': 'gym',
+        'security': 'security',
+        'homeTheater': 'homeTheater',
+        'spa': 'spa',
+        'elevator': 'elevator',
+        'conference': 'conferenceRoom',
+        'conferenceRoom': 'conferenceRoom',
+        'gated': 'gatedCommunity',
+        'gatedCommunity': 'gatedCommunity',
+        'waterSupply': 'waterSupply',
+        'electricity': 'electricity'
+      };
+
       facilityArray.forEach(facility => {
-        whereConditions[`facilities.${facility}`] = true;
+        const dbColumn = facilityMapping[facility] || facility;
+        
+        // Special handling for furnished (it's an ENUM)
+        if (dbColumn === 'furnished') {
+          whereConditions.furnished = {
+            [Op.in]: ['furnished', 'semi-furnished']
+          };
+        } else {
+          // For boolean fields
+          whereConditions[dbColumn] = true;
+        }
       });
     }
 
@@ -108,56 +157,103 @@ exports.getAllProperties = async (req, res) => {
       ]
     });
 
-    // FIXED: Transform response to match frontend expectations
-    const transformedProperties = properties.map(property => ({
-      _id: property.id,
-      title: property.title,
-      description: property.description,
-      propertyType: property.propertyType,
-      type: property.propertyType, // ADDED: Frontend compatibility
-      listingType: property.listingType,
-      propertyFor: property.listingType, // ADDED: Frontend compatibility
-      price: property.price,
-      location: property.location,
-      city: property.location?.city, // ADDED: Direct city access
-      specifications: property.specifications,
-      bedrooms: property.specifications?.bedrooms, // ADDED: Direct access
-      bathrooms: property.specifications?.bathrooms, // ADDED: Direct access
-      area: property.specifications?.area, // ADDED: Direct access
-      facilities: property.facilities,
-      images: property.images,
-      image: property.images && property.images.length > 0 ? property.images[0] : null, // ADDED: Single image for frontend
-      yearBuilt: property.yearBuilt,
-      age: property.age,
-      condition: property.condition,
-      style: property.style,
-      status: property.status,
-      views: property.views,
-      inquiries: property.inquiries,
-      isFeatured: property.isFeatured,
-      parking: property.facilities?.parkingSlot || false, // ADDED: Frontend compatibility
-      lat: property.location?.coordinates?.lat || 0, // ADDED: Map compatibility
-      lng: property.location?.coordinates?.lng || 0, // ADDED: Map compatibility
-      broker: property.broker ? {
-        userId: property.broker.user?.id,
-        company: property.broker.companyName,
-        licenseNumber: property.broker.licenseNumber,
-        experience: property.broker.yearsOfExperience,
-        name: property.broker.user?.name,
-        email: property.broker.user?.email,
-        phone: property.broker.user?.phone
-      } : null,
-      createdAt: property.createdAt
-    }));
+    // Transform response to match frontend expectations
+    const transformedProperties = properties.map(property => {
+      // Build facilities object from individual boolean fields
+      const facilities = {
+        furnished: property.furnished === 'furnished' || property.furnished === 'semi-furnished',
+        petAllowed: property.petAllowed || false,
+        parkingSlot: property.parkingSlot || false,
+        kitchen: property.kitchen || false,
+        wifi: property.wifi || false,
+        ac: property.ac || false,
+        swimmingPool: property.swimmingPool || false,
+        gym: property.gym || false,
+        security: property.security || false,
+        homeTheater: property.homeTheater || false,
+        spa: property.spa || false,
+        elevator: property.elevator || false,
+        conferenceRoom: property.conferenceRoom || false,
+        gatedCommunity: property.gatedCommunity || false,
+        waterSupply: property.waterSupply || false,
+        electricity: property.electricity || false
+      };
 
-    // FIXED: Response structure to match frontend expectations
+      // Build specifications object
+      const specifications = {
+        bedrooms: property.bedrooms || 0,
+        bathrooms: property.bathrooms || 0,
+        diningRooms: property.diningRooms || 0,
+        area: property.area || 0,
+        furnished: property.furnished || 'unfurnished'
+      };
+
+      // Build location object
+      const location = {
+        address: property.address,
+        city: property.city,
+        state: property.state,
+        zipCode: property.pincode,
+        country: property.country,
+        coordinates: {
+          lat: property.latitude ? parseFloat(property.latitude) : 0,
+          lng: property.longitude ? parseFloat(property.longitude) : 0
+        }
+      };
+
+      return {
+        _id: property.id,
+        id: property.id,
+        title: property.title,
+        description: property.description,
+        propertyType: property.propertyType,
+        type: property.propertyType, // Frontend compatibility
+        listingType: property.listingType,
+        propertyFor: property.listingType, // Frontend compatibility
+        price: property.price,
+        location: location,
+        city: property.city, // Direct city access
+        specifications: specifications,
+        bedrooms: property.bedrooms || 0, // Direct access
+        bathrooms: property.bathrooms || 0, // Direct access
+        diningRooms: property.diningRooms || 0, // Direct access
+        area: property.area || 0, // Direct access
+        facilities: facilities,
+        images: property.images || [],
+        image: property.images && property.images.length > 0 ? property.images[0] : null, // Single image for cards
+        yearBuilt: property.yearBuilt,
+        age: property.age,
+        condition: property.condition,
+        style: property.style,
+        status: property.status,
+        views: property.views || 0,
+        inquiries: property.inquiries || 0,
+        isFeatured: property.isFeatured || false,
+        parking: property.parkingSlot || false, // Frontend compatibility
+        lat: property.latitude ? parseFloat(property.latitude) : 0,
+        lng: property.longitude ? parseFloat(property.longitude) : 0,
+        broker: property.broker ? {
+          userId: property.broker.user?.id,
+          company: property.broker.companyName,
+          licenseNumber: property.broker.licenseNumber,
+          experience: property.broker.yearsOfExperience,
+          name: property.broker.user?.name,
+          email: property.broker.user?.email,
+          phone: property.broker.user?.phone
+        } : null,
+        createdAt: property.createdAt,
+        updatedAt: property.updatedAt
+      };
+    });
+
+    // Response structure to match frontend expectations
     res.status(200).json({
-      properties: transformedProperties, // Direct access
+      success: true,
+      properties: transformedProperties,
       count: transformedProperties.length,
       totalCount: count,
       currentPage: parseInt(page),
-      totalPages: Math.ceil(count / parseInt(limit)),
-      success: true // Optional for error handling
+      totalPages: Math.ceil(count / parseInt(limit))
     });
 
   } catch (error) {
@@ -165,7 +261,8 @@ exports.getAllProperties = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching properties',
-      properties: [], // ADDED: Empty array for frontend
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      properties: [],
       currentPage: 1,
       totalPages: 1
     });
@@ -200,9 +297,52 @@ exports.getPropertyById = async (req, res) => {
     // Increment view count
     await property.increment('views');
 
-    // FIXED: Transform response with proper user object structure
+    // Build facilities object from individual boolean fields
+    const facilities = {
+      furnished: property.furnished === 'furnished' || property.furnished === 'semi-furnished',
+      petAllowed: property.petAllowed || false,
+      parkingSlot: property.parkingSlot || false,
+      kitchen: property.kitchen || false,
+      wifi: property.wifi || false,
+      ac: property.ac || false,
+      swimmingPool: property.swimmingPool || false,
+      gym: property.gym || false,
+      security: property.security || false,
+      homeTheater: property.homeTheater || false,
+      spa: property.spa || false,
+      elevator: property.elevator || false,
+      conferenceRoom: property.conferenceRoom || false,
+      gatedCommunity: property.gatedCommunity || false,
+      waterSupply: property.waterSupply || false,
+      electricity: property.electricity || false
+    };
+
+    // Build specifications object
+    const specifications = {
+      bedrooms: property.bedrooms || 0,
+      bathrooms: property.bathrooms || 0,
+      diningRooms: property.diningRooms || 0,
+      area: property.area || 0,
+      furnished: property.furnished || 'unfurnished'
+    };
+
+    // Build location object
+    const location = {
+      address: property.address,
+      city: property.city,
+      state: property.state,
+      zipCode: property.pincode,
+      country: property.country,
+      coordinates: {
+        lat: property.latitude ? parseFloat(property.latitude) : 0,
+        lng: property.longitude ? parseFloat(property.longitude) : 0
+      }
+    };
+
+    // Transform response with proper structure for frontend
     const transformedProperty = {
       _id: property.id,
+      id: property.id,
       title: property.title,
       description: property.description,
       propertyType: property.propertyType,
@@ -210,14 +350,15 @@ exports.getPropertyById = async (req, res) => {
       listingType: property.listingType,
       propertyFor: property.listingType,
       price: property.price,
-      location: property.location,
-      city: property.location?.city,
-      specifications: property.specifications,
-      bedrooms: property.specifications?.bedrooms,
-      bathrooms: property.specifications?.bathrooms,
-      area: property.specifications?.area,
-      facilities: property.facilities,
-      images: property.images,
+      location: location,
+      city: property.city,
+      specifications: specifications,
+      bedrooms: property.bedrooms || 0,
+      bathrooms: property.bathrooms || 0,
+      diningRooms: property.diningRooms || 0,
+      area: property.area || 0,
+      facilities: facilities,
+      images: property.images || [],
       image: property.images && property.images.length > 0 ? property.images[0] : null,
       yearBuilt: property.yearBuilt,
       age: property.age,
@@ -225,15 +366,14 @@ exports.getPropertyById = async (req, res) => {
       style: property.style,
       status: property.status,
       views: property.views + 1,
-      inquiries: property.inquiries,
-      isFeatured: property.isFeatured,
-      parking: property.facilities?.parkingSlot || false,
-      lat: property.location?.coordinates?.lat || 0,
-      lng: property.location?.coordinates?.lng || 0,
+      inquiries: property.inquiries || 0,
+      isFeatured: property.isFeatured || false,
+      parking: property.parkingSlot || false,
+      lat: property.latitude ? parseFloat(property.latitude) : 0,
+      lng: property.longitude ? parseFloat(property.longitude) : 0,
       ownerType: property.ownerType,
-      // FIXED: Broker object with proper userId structure for frontend
+      // Broker object with proper userId structure for frontend
       broker: property.broker ? {
-        // Frontend expects: property.broker.userId.name
         userId: property.broker.user ? {
           _id: property.broker.user.id,
           id: property.broker.user.id,
@@ -261,7 +401,8 @@ exports.getPropertyById = async (req, res) => {
     console.error('Error fetching property:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching property details'
+      message: 'Error fetching property details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -276,11 +417,39 @@ exports.createProperty = async (req, res) => {
       description,
       propertyType,
       listingType,
-      propertyFor, // ADDED: Support frontend parameter
+      propertyFor, // Frontend compatibility
       price,
-      location,
-      specifications,
-      facilities,
+      // Location fields
+      address,
+      city,
+      state,
+      pincode,
+      country,
+      latitude,
+      longitude,
+      // Specifications
+      bedrooms,
+      bathrooms,
+      diningRooms,
+      area,
+      furnished,
+      // Facilities (individual fields)
+      parkingSlot,
+      wifi,
+      security,
+      kitchen,
+      ac,
+      swimmingPool,
+      gym,
+      petAllowed,
+      homeTheater,
+      spa,
+      elevator,
+      conferenceRoom,
+      gatedCommunity,
+      waterSupply,
+      electricity,
+      // Other fields
       images,
       yearBuilt,
       age,
@@ -316,11 +485,39 @@ exports.createProperty = async (req, res) => {
       title,
       description,
       propertyType,
-      listingType: listingType || propertyFor || 'sale', // FIXED: Support both parameters
+      listingType: listingType || propertyFor || 'sale',
       price,
-      location,
-      specifications,
-      facilities: facilities || {},
+      // Location
+      address,
+      city,
+      state,
+      pincode,
+      country,
+      latitude,
+      longitude,
+      // Specifications
+      bedrooms: bedrooms || 0,
+      bathrooms: bathrooms || 0,
+      diningRooms: diningRooms || 0,
+      area,
+      furnished,
+      // Facilities
+      parkingSlot: parkingSlot || false,
+      wifi: wifi || false,
+      security: security || false,
+      kitchen: kitchen || false,
+      ac: ac || false,
+      swimmingPool: swimmingPool || false,
+      gym: gym || false,
+      petAllowed: petAllowed || false,
+      homeTheater: homeTheater || false,
+      spa: spa || false,
+      elevator: elevator || false,
+      conferenceRoom: conferenceRoom || false,
+      gatedCommunity: gatedCommunity || false,
+      waterSupply: waterSupply || false,
+      electricity: electricity || false,
+      // Other
       images: images || [],
       yearBuilt,
       age,
@@ -341,7 +538,8 @@ exports.createProperty = async (req, res) => {
     console.error('Error creating property:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error creating property'
+      message: error.message || 'Error creating property',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -373,7 +571,7 @@ exports.updateProperty = async (req, res) => {
       });
     }
 
-    // FIXED: Support both listingType and propertyFor
+    // Support both listingType and propertyFor
     const updateData = { ...req.body };
     if (req.body.propertyFor && !req.body.listingType) {
       updateData.listingType = req.body.propertyFor;
@@ -392,7 +590,8 @@ exports.updateProperty = async (req, res) => {
     console.error('Error updating property:', error);
     res.status(500).json({
       success: false,
-      message: 'Error updating property'
+      message: 'Error updating property',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -435,7 +634,8 @@ exports.deleteProperty = async (req, res) => {
     console.error('Error deleting property:', error);
     res.status(500).json({
       success: false,
-      message: 'Error deleting property'
+      message: 'Error deleting property',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -461,28 +661,55 @@ exports.getMyProperties = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // FIXED: Transform response to match frontend expectations
-    const transformedProperties = properties.map(property => ({
-      _id: property.id,
-      title: property.title,
-      propertyType: property.propertyType,
-      type: property.propertyType, // ADDED
-      listingType: property.listingType,
-      propertyFor: property.listingType, // ADDED
-      price: property.price,
-      location: property.location,
-      city: property.location?.city, // ADDED
-      specifications: property.specifications,
-      bedrooms: property.specifications?.bedrooms, // ADDED
-      bathrooms: property.specifications?.bathrooms, // ADDED
-      area: property.specifications?.area, // ADDED
-      images: property.images,
-      image: property.images && property.images.length > 0 ? property.images[0] : null, // ADDED
-      status: property.status,
-      views: property.views,
-      inquiries: property.inquiries,
-      createdAt: property.createdAt
-    }));
+    // Transform response to match frontend expectations
+    const transformedProperties = properties.map(property => {
+      const facilities = {
+        furnished: property.furnished === 'furnished' || property.furnished === 'semi-furnished',
+        petAllowed: property.petAllowed || false,
+        parkingSlot: property.parkingSlot || false,
+        kitchen: property.kitchen || false,
+        wifi: property.wifi || false,
+        ac: property.ac || false,
+        swimmingPool: property.swimmingPool || false,
+        gym: property.gym || false,
+        security: property.security || false
+      };
+
+      const specifications = {
+        bedrooms: property.bedrooms || 0,
+        bathrooms: property.bathrooms || 0,
+        area: property.area || 0
+      };
+
+      const location = {
+        city: property.city,
+        state: property.state,
+        address: property.address
+      };
+
+      return {
+        _id: property.id,
+        title: property.title,
+        propertyType: property.propertyType,
+        type: property.propertyType,
+        listingType: property.listingType,
+        propertyFor: property.listingType,
+        price: property.price,
+        location: location,
+        city: property.city,
+        specifications: specifications,
+        bedrooms: property.bedrooms || 0,
+        bathrooms: property.bathrooms || 0,
+        area: property.area || 0,
+        facilities: facilities,
+        images: property.images || [],
+        image: property.images && property.images.length > 0 ? property.images[0] : null,
+        status: property.status,
+        views: property.views || 0,
+        inquiries: property.inquiries || 0,
+        createdAt: property.createdAt
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -494,7 +721,8 @@ exports.getMyProperties = async (req, res) => {
     console.error('Error fetching broker properties:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching properties'
+      message: 'Error fetching properties',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -529,7 +757,8 @@ exports.scheduleVisit = async (req, res) => {
     console.error('Error scheduling visit:', error);
     res.status(500).json({
       success: false,
-      message: 'Error scheduling visit'
+      message: 'Error scheduling visit',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -561,7 +790,8 @@ exports.toggleFeatured = async (req, res) => {
     console.error('Error toggling featured status:', error);
     res.status(500).json({
       success: false,
-      message: 'Error updating featured status'
+      message: 'Error updating featured status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

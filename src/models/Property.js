@@ -29,15 +29,16 @@ const Property = sequelize.define('Property', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  // UPDATED: Changed to match new frontend categories
   propertyType: {
-    type: DataTypes.ENUM('Apartment', 'Villa', 'House', 'Commercial', 'Land', 'Office', 'Shop', 'Warehouse'),
+    type: DataTypes.ENUM('residential', 'commercial', 'land', 'luxury', 'Apartment', 'Villa', 'House', 'Commercial', 'Land', 'Office', 'Shop', 'Warehouse'),
     allowNull: false,
-    comment: 'Property type - matches PROPERTY_TYPES constants'
+    comment: 'Property type - residential, commercial, land, luxury (new) + legacy types for backward compatibility'
   },
   listingType: {
     type: DataTypes.ENUM('sale', 'rent'),
     allowNull: false,
-    comment: 'Listing type - matches LISTING_TYPES constants'
+    comment: 'Listing type - sale or rent'
   },
   price: {
     type: DataTypes.DECIMAL(15, 2),
@@ -82,11 +83,20 @@ const Property = sequelize.define('Property', {
   // Specifications
   bedrooms: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    defaultValue: 0
   },
   bathrooms: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    defaultValue: 0
+  },
+  // ADDED: Dining rooms for residential properties
+  diningRooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    defaultValue: 0,
+    comment: 'Number of dining rooms/spaces'
   },
   area: {
     type: DataTypes.DECIMAL(10, 2),
@@ -97,21 +107,107 @@ const Property = sequelize.define('Property', {
     type: DataTypes.ENUM('furnished', 'semi-furnished', 'unfurnished'),
     allowNull: true
   },
-  // Facilities
+  // Facilities - Individual boolean fields for better filtering
+  // Common facilities
+  parkingSlot: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Parking available'
+  },
+  wifi: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'WiFi included'
+  },
+  security: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: '24/7 Security'
+  },
+  
+  // Residential facilities
+  kitchen: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Kitchen/Modular Kitchen'
+  },
+  ac: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Air Conditioning'
+  },
+  swimmingPool: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Swimming Pool'
+  },
+  gym: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Gym/Fitness Center'
+  },
+  petAllowed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Pets allowed'
+  },
+  
+  // Luxury facilities
+  homeTheater: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Home Theater'
+  },
+  spa: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Spa facility'
+  },
+  
+  // Commercial facilities
+  elevator: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Elevator/Lift'
+  },
+  conferenceRoom: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Conference Room'
+  },
+  
+  // Land facilities
+  gatedCommunity: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Gated Community'
+  },
+  waterSupply: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Water Supply available'
+  },
+  electricity: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: 'Electricity connection'
+  },
+  
+  // Legacy amenities array (keep for backward compatibility)
   amenities: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
     defaultValue: [],
-    comment: 'e.g., Parking, Gym, Pool, Security, WiFi, AC'
+    comment: 'Legacy amenities array - e.g., Parking, Gym, Pool, Security, WiFi, AC'
   },
-  petAllowed: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
+  
+  // DEPRECATED: Use individual facility fields instead
   parkingSlots: {
     type: DataTypes.INTEGER,
-    defaultValue: 0
+    defaultValue: 0,
+    comment: 'DEPRECATED: Use parkingSlot boolean instead'
   },
+  
   images: {
     type: DataTypes.ARRAY(DataTypes.STRING),
     allowNull: true,
@@ -122,7 +218,7 @@ const Property = sequelize.define('Property', {
     type: DataTypes.ENUM('active', 'pending', 'sold', 'rented', 'inactive'),
     defaultValue: 'active',
     allowNull: false,
-    comment: 'Property status - matches PROPERTY_STATUS constants'
+    comment: 'Property status'
   },
   isFeatured: {
     type: DataTypes.BOOLEAN,
@@ -159,7 +255,7 @@ const Property = sequelize.define('Property', {
     type: DataTypes.ENUM('broker', 'owner'),
     defaultValue: 'broker',
     allowNull: false,
-    comment: 'Owner type - matches OWNER_TYPES constants'
+    comment: 'Owner type'
   },
   // SEO fields
   metaTitle: {
@@ -194,6 +290,12 @@ const Property = sequelize.define('Property', {
     },
     {
       fields: ['price']
+    },
+    {
+      fields: ['bedrooms']
+    },
+    {
+      fields: ['bathrooms']
     }
   ]
 });
