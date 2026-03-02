@@ -184,7 +184,7 @@ const startServer = async () => {
     console.log('🌐 Port:', PORT);
     console.log('🔗 Frontend URL:', process.env.FRONTEND_URL);
     console.log('🗄️  Database Platform: Supabase PostgreSQL');
-    console.log('☁️  Hosting Platform: Koyeb');
+    console.log('☁️  Hosting Platform: render');
     
     // Test database connection
     const connected = await testConnection();
@@ -206,7 +206,7 @@ const startServer = async () => {
       console.log('✅ ========================================');
       console.log('✅  SERVER RUNNING SUCCESSFULLY');
       console.log('✅ ========================================');
-      console.log(`🌐 Platform: Koyeb + Supabase`);
+      console.log(`🌐 Platform: Render + Supabase`);
       console.log(`🏥 Health Check: /health`);
       console.log(`📡 API Base: /api`);
       console.log(`🔐 CORS Allowed: ${process.env.FRONTEND_URL}`);
