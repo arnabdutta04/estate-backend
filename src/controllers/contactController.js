@@ -6,36 +6,35 @@ const { Op } = require('sequelize');
 // @access  Public
 exports.submitContactForm = async (req, res) => {
   try {
+    // ✅ FIX: Frontend sends firstName + lastName separately, model stores single "name"
     const { firstName, lastName, email, phone, message } = req.body;
 
     // Validate required fields
     if (!firstName || !lastName || !email || !phone || !message) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide all required fields (firstName, lastName, email, phone, message)'
       });
     }
 
+    // ✅ FIX: Combine firstName + lastName into the "name" field the model expects
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
     // Create contact submission
     const contact = await Contact.create({
-      firstName,
-      lastName,
+      name: fullName,       // ✅ FIX: model field is "name", not firstName/lastName
       email,
       phone,
       message,
       status: 'new'
     });
 
-    // TODO: Send email notification to admin
-    // TODO: Send auto-reply email to user
-
     res.status(201).json({
       success: true,
       message: 'Thank you for contacting us! We will get back to you soon.',
       contact: {
         id: contact.id,
-        firstName: contact.firstName,
-        lastName: contact.lastName,
+        name: contact.name,
         email: contact.email,
         createdAt: contact.createdAt
       }
@@ -57,7 +56,6 @@ exports.getAllContacts = async (req, res) => {
   try {
     const { status, page = 1, limit = 20, search } = req.query;
 
-    // Build where conditions
     const whereConditions = {};
 
     if (status) {
@@ -66,23 +64,16 @@ exports.getAllContacts = async (req, res) => {
 
     if (search) {
       whereConditions[Op.or] = [
-        { firstName: { [Op.iLike]: `%${search}%` } },
-        { lastName: { [Op.iLike]: `%${search}%` } },
+        { name: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
         { phone: { [Op.iLike]: `%${search}%` } }
       ];
     }
 
-    // Pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     const { count, rows: contacts } = await Contact.findAndCountAll({
       where: whereConditions,
-      include: [{
-        model: User,
-        as: 'replier',
-        attributes: ['id', 'name', 'email']
-      }],
       limit: parseInt(limit),
       offset: offset,
       order: [
@@ -114,13 +105,7 @@ exports.getAllContacts = async (req, res) => {
 // @access  Private (Admin)
 exports.getContactById = async (req, res) => {
   try {
-    const contact = await Contact.findByPk(req.params.id, {
-      include: [{
-        model: User,
-        as: 'replier',
-        attributes: ['id', 'name', 'email']
-      }]
-    });
+    const contact = await Contact.findByPk(req.params.id);
 
     if (!contact) {
       return res.status(404).json({
@@ -181,24 +166,12 @@ exports.updateContactStatus = async (req, res) => {
     const updateData = { status };
 
     if (adminNotes !== undefined) {
-      updateData.adminNotes = adminNotes;
-    }
-
-    if (status === 'replied') {
-      updateData.repliedAt = new Date();
-      updateData.repliedBy = req.user.id;
+      updateData.notes = adminNotes;  // model field is "notes"
     }
 
     await contact.update(updateData);
 
-    // Fetch updated contact with replier info
-    const updatedContact = await Contact.findByPk(contact.id, {
-      include: [{
-        model: User,
-        as: 'replier',
-        attributes: ['id', 'name', 'email']
-      }]
-    });
+    const updatedContact = await Contact.findByPk(contact.id);
 
     res.status(200).json({
       success: true,
@@ -256,28 +229,18 @@ exports.getContactStats = async (req, res) => {
     const repliedContacts = await Contact.count({ where: { status: 'replied' } });
     const closedContacts = await Contact.count({ where: { status: 'closed' } });
 
-    // Get contacts from last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const recentContacts = await Contact.count({
-      where: {
-        createdAt: {
-          [Op.gte]: sevenDaysAgo
-        }
-      }
+      where: { createdAt: { [Op.gte]: sevenDaysAgo } }
     });
 
-    // Get contacts from last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const monthlyContacts = await Contact.count({
-      where: {
-        createdAt: {
-          [Op.gte]: thirtyDaysAgo
-        }
-      }
+      where: { createdAt: { [Op.gte]: thirtyDaysAgo } }
     });
 
     res.status(200).json({
@@ -323,20 +286,10 @@ exports.bulkUpdateContacts = async (req, res) => {
       });
     }
 
-    const updateData = { status };
-
-    if (status === 'replied') {
-      updateData.repliedAt = new Date();
-      updateData.repliedBy = req.user.id;
-    }
-
-    await Contact.update(updateData, {
-      where: {
-        id: {
-          [Op.in]: contactIds
-        }
-      }
-    });
+    await Contact.update(
+      { status },
+      { where: { id: { [Op.in]: contactIds } } }
+    );
 
     res.status(200).json({
       success: true,

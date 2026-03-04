@@ -8,8 +8,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Upload single file to Cloudinary
-exports.uploadToCloudinary = async (fileBuffer, folder = 'estate', resourceType = 'auto') => {
+// ✅ FIX: Helper used internally — named so exports.* can reference it safely
+const uploadToCloudinary = async (fileBuffer, folder = 'estate', resourceType = 'auto') => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -39,12 +39,15 @@ exports.uploadToCloudinary = async (fileBuffer, folder = 'estate', resourceType 
   });
 };
 
+// ✅ FIX: Export as named function — no more "this" context issues
+exports.uploadToCloudinary = uploadToCloudinary;
+
 // Upload multiple files to Cloudinary
+// ✅ FIX: was "this.uploadToCloudinary" which is undefined in CommonJS exports
 exports.uploadMultipleToCloudinary = async (files, folder = 'estate') => {
-  const uploadPromises = files.map(file => 
-    this.uploadToCloudinary(file.buffer, folder)
+  const uploadPromises = files.map(file =>
+    uploadToCloudinary(file.buffer, folder)  // ✅ direct function call
   );
-  
   return await Promise.all(uploadPromises);
 };
 
@@ -60,17 +63,23 @@ exports.deleteFromCloudinary = async (publicId) => {
 };
 
 // Upload broker profile image
+// ✅ FIX: was "this.uploadToCloudinary" — now direct call
 exports.uploadBrokerProfileImage = async (fileBuffer) => {
-  return await this.uploadToCloudinary(fileBuffer, 'estate/brokers/profiles', 'image');
+  return await uploadToCloudinary(fileBuffer, 'estate/brokers/profiles', 'image');
 };
 
-// Upload broker documents
+// Upload broker documents (license, id-proof etc.)
+// ✅ FIX: was "this.uploadToCloudinary" — now direct call
 exports.uploadBrokerDocument = async (fileBuffer, documentType) => {
   const folder = `estate/brokers/documents/${documentType}`;
-  return await this.uploadToCloudinary(fileBuffer, folder, 'auto');
+  return await uploadToCloudinary(fileBuffer, folder, 'auto');
 };
 
 // Upload property images
+// ✅ FIX: was "this.uploadMultipleToCloudinary" — now direct call
 exports.uploadPropertyImages = async (files) => {
-  return await this.uploadMultipleToCloudinary(files, 'estate/properties');
+  const uploadPromises = files.map(file =>
+    uploadToCloudinary(file.buffer, 'estate/properties', 'image')
+  );
+  return await Promise.all(uploadPromises);
 };

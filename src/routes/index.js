@@ -9,6 +9,8 @@ const uploadRoutes = require('./uploadRoutes');
 const propertyRoutes = require('./propertyRoutes');
 const userRoutes = require('./userRoutes');
 const contactRoutes = require('./contactRoutes');
+const messageRoutes = require('./messageRoutes');     // ✅ FIX: was missing
+const scheduleRoutes = require('./scheduleRoutes');   // ✅ FIX: was missing
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -18,6 +20,8 @@ router.use('/upload', uploadRoutes);
 router.use('/properties', propertyRoutes);
 router.use('/users', userRoutes);
 router.use('/contact', contactRoutes);
+router.use('/messages', messageRoutes);    // ✅ FIX: messages now reachable
+router.use('/schedules', scheduleRoutes);  // ✅ FIX: schedules now reachable
 
 // Health check for API
 router.get('/health', (req, res) => {
